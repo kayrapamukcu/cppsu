@@ -76,15 +76,9 @@ void db::read_db(std::vector<file_struct>& db) {
         to_int(v, format_version);
         if (format_version != 3) { std::cout << "Database format not supported, reconstructing...\n"; reconstruct_db(); return; }
     }
-	if (!std::getline(in, line)) { reconstruct_db(); return; } // TotalMaps: x)
-	chomp_cr(line);
 
-    // Current [SET] state (applies to following [MAP]s until next [SET])
     std::string cur_title, cur_artist;
     int beatmap_set_id = 0;
-
-    // Optional: speed up output vector if you can estimate count
-    // out.reserve( /* approximate number of maps */ );
 
     while (std::getline(in, line)) {
         chomp_cr(line);

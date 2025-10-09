@@ -399,9 +399,8 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
-build_files
-raylib-master
 Makefile
 .vscode
 maps
 database.db
+cppsu.zip
