@@ -52,6 +52,9 @@ int main()
 	SetTargetFPS(1000);
 	UpdateMusicStream(music);
 	PlayMusicStream(music);
+	
+	db::reconstruct_db();
+
 	while (!WindowShouldClose())
 	{
 		UpdateMusicStream(music);
@@ -61,14 +64,36 @@ int main()
 			case MAIN_MENU:
 				DrawTextEx(font36, "Welcome to cppsu!", { 32, 32 }, 36, 0, WHITE);
 				DrawTextEx(font24, "Press M to switch to the song select screen!", { 32, screen_height - 64 }, 24, 0, WHITE);
+				DrawTextEx(font24, "Press N to import maps!", { 32, screen_height - 32 }, 24, 0, WHITE);
 				if (IsKeyPressed(KEY_M)) {
 					song_select::init();
 					game_state = SONG_SELECT;
 				}
+				if (IsKeyPressed(KEY_N)) {
+					game_state = MAIN_MENU;
+					if (db::add_to_db()) {
+						song_select::init();
+						game_state = SONG_SELECT;
+					}
+				}
 			break;
-			case SONG_SELECT:	
+			case SONG_SELECT:
+				if (IsKeyPressed(KEY_B)) {
+					game_state = MAIN_MENU;
+				}
+				if (IsKeyPressed(KEY_N)) {
+					game_state = MAIN_MENU;
+					if (db::add_to_db()) {
+						song_select::init();
+						game_state = SONG_SELECT;
+					}
+				}
+
 				song_select::update();
 				song_select::draw();
+			break;
+			case INGAME:
+				
 			break;
 		}
 		EndDrawing();

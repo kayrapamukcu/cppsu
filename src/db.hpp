@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <filesystem>
+#include <mutex>
 
 struct file_struct {
 	std::string audio_filename;
@@ -57,8 +58,12 @@ public:
 	}
 
 	static void reconstruct_db();
-	static void add_to_db();
+	static bool append_set_to_db(int set_id);
+	static bool add_to_db();
 	static void read_db(std::vector<file_struct>& db);
 	static file_struct read_file_metadata(const std::filesystem::path& p);
+
+
 	static inline std::filesystem::path fs_path;
+	static inline std::mutex g_dbFileMutex;
 };

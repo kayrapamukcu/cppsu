@@ -529,6 +529,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\include\miniz.c" />
+    <ClCompile Include="..\..\include\tinyfiledialogs.c" />
     <ClCompile Include="..\..\src\db.cpp" />
     <ClCompile Include="..\..\src\main.cpp" />
     <ClCompile Include="..\..\src\song_select.cpp" />
@@ -539,6 +541,8 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\miniz.h" />
+    <ClInclude Include="..\..\include\tinyfiledialogs.h" />
     <ClInclude Include="..\..\src\db.hpp" />
     <ClInclude Include="..\..\src\globals.hpp" />
     <ClInclude Include="..\..\src\song_select.hpp" />
