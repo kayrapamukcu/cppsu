@@ -22,6 +22,15 @@ struct file_struct {
 	float ar = 9.0f;
 
 	float star_rating = 5.0f;
+
+	float avg_bpm = 120.0f;
+	float min_bpm = 120.0f;
+	float max_bpm = 120.0f;
+
+	uint16_t map_length = 0;
+	uint16_t circle_count = 0;
+	uint16_t slider_count = 0;
+	uint16_t spinner_count = 0;
 };
 
 class db {

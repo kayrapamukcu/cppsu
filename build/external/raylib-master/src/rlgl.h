@@ -719,6 +719,7 @@ RLAPI void rlglClose(void);                             // De-initialize rlgl (b
 RLAPI void rlLoadExtensions(void *loader);              // Load OpenGL extensions (loader function required)
 RLAPI void *rlGetProcAddress(const char *procName);     // Get OpenGL procedure address
 RLAPI int rlGetVersion(void);                           // Get current OpenGL version
+RLAPI int rlIsNPOTSupported(void);                      // Check if NPOT textures are supported
 RLAPI void rlSetFramebufferWidth(int width);            // Set current framebuffer width
 RLAPI int rlGetFramebufferWidth(void);                  // Get default framebuffer width
 RLAPI void rlSetFramebufferHeight(int height);          // Set current framebuffer height
@@ -2722,8 +2723,11 @@ int rlGetVersion(void)
 #elif defined(GRAPHICS_API_OPENGL_ES2)
     glVersion = RL_OPENGL_ES_20;
 #endif
-
     return glVersion;
+}
+
+int rlIsNPOTSupported(void) {
+    return RLGL.ExtSupported.texNPOT;
 }
 
 // Set current framebuffer width
