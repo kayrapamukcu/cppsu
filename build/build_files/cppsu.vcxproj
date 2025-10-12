@@ -531,6 +531,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\db.cpp" />
     <ClCompile Include="..\..\src\main.cpp" />
+    <ClCompile Include="..\..\src\song_select.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="raylib.vcxproj">
@@ -539,6 +540,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\db.hpp" />
+    <ClInclude Include="..\..\src\globals.hpp" />
+    <ClInclude Include="..\..\src\song_select.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

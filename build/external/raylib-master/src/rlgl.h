@@ -2727,7 +2727,10 @@ int rlGetVersion(void)
 }
 
 int rlIsNPOTSupported(void) {
+#if defined(GRAPHICS_API_OPENGL_21)
     return RLGL.ExtSupported.texNPOT;
+#endif
+    return 0;
 }
 
 // Set current framebuffer width
