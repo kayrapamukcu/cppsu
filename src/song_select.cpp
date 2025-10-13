@@ -9,17 +9,48 @@ float song_select::entry_row_height = 86.0f;
 double song_select::current_position = 0.5;
 float song_select::scroll_speed = 0.0f;
 double song_select::map_space_normalized = 0.1;
+int song_select::visible_entries = 11;
 std::vector<file_struct> song_select::map_list;
 int song_select::map_list_size = 0;
-int song_select::selected_mapset = -1;
+int song_select::selected_mapset = -999;
 file_struct song_select::selected_map = file_struct();
+
+void song_select::choose_beatmap(int idx) {
+	if (selected_mapset != map_list[idx].beatmap_set_id) {
+		selected_map = map_list[idx];
+		std::filesystem::path audio_path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / selected_map.audio_filename;
+		UnloadMusicStream(music);
+		music = LoadMusicStream(audio_path.string().c_str());
+		if(!music.ctxData) {
+			std::cout << "Failed to load music: " << audio_path << "\n";
+			game_state = MAIN_MENU;
+			return;
+		}
+		PlayMusicStream(music);
+		SeekMusicStream(music, selected_map.preview_time / 1000.0f);
+	}
+	else selected_map = map_list[idx];
+
+	selected_mapset = map_list[idx].beatmap_set_id;
+	UnloadTexture(background.tex);
+	std::filesystem::path bg_path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / selected_map.bg_photo_name;
+	background = LoadTextureCompat(bg_path.string().c_str());
+}
 
 void song_select::init() {
 	db::read_db(map_list);
+	if (map_list.empty()) {
+		std::cout << "No beatmaps found. Please import beatmaps and retry.\n";
+		game_state = MAIN_MENU;
+		return;
+	}
 	selected_map = map_list[0];
-	selected_mapset = selected_map.beatmap_set_id;
+	selected_mapset = -999;
 	map_list_size = (int)map_list.size();
-	map_space_normalized = 1.0 / map_list_size;
+	map_space_normalized = 1.0 / (std::max(11, map_list_size));
+	visible_entries = std::min(11, map_list_size);
+	game_state = SONG_SELECT; 
+	choose_beatmap(0);
 }
 void song_select::update() {
 	if (IsKeyPressed(KEY_B)) game_state = MAIN_MENU;
@@ -32,7 +63,7 @@ void song_select::update() {
 	scroll_speed *= std::max(0.0f, 1.0f - dt);
 
 	current_position += scroll_speed * map_space_normalized * 0.01f * (dt * 120.0f);
-	current_position = std::clamp(current_position, -3 * map_space_normalized, 2 * map_space_normalized + 1.0 - visible_entries * map_space_normalized);
+	current_position = std::clamp(current_position, -4 * map_space_normalized, 0.85);
 
 	double logical = current_position * map_list_size;
 	int base = std::clamp((int)std::floor(logical), 0, std::max(map_list_size - visible_entries, 0));
@@ -47,38 +78,26 @@ void song_select::update() {
 				int idx = base + i;
 				if (idx >= 0 && idx < map_list_size) {
 					if (selected_map.beatmap_id != map_list[idx].beatmap_id) { // Selected new map!
-						if (selected_mapset != map_list[idx].beatmap_set_id) {
-							selected_map = map_list[idx];
-							std::filesystem::path audio_path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / selected_map.audio_filename;
-							UnloadMusicStream(music);
-							music = LoadMusicStream(audio_path.string().c_str());
-							PlayMusicStream(music);
-							SeekMusicStream(music, selected_map.preview_time / 1000.0f);
-						}
-						else selected_map = map_list[idx];
-						UnloadTexture(background.tex);
-						std::filesystem::path bg_path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / selected_map.bg_photo_name;
-						background = LoadTextureCompat(bg_path.string().c_str());
+						choose_beatmap(idx);
 					}
-
 					else {
 						// enter game
 					}
-					selected_mapset = map_list[idx].beatmap_set_id;
 				}
 			}
 		}
 }
 
 void song_select::draw() {
+	if (map_list.empty()) return;
 	DrawTextureCompatPro(background, { 0,0, screen_width, screen_height }, WHITE);
 	
 	// draw 11 rows
-
 	double logical = current_position * map_list_size;
 	int base = std::clamp((int)std::floor(logical), 0, std::max(map_list_size - visible_entries, 0));
 	double frac = logical - base;
 	float y_origin, x_origin;
+
 
 	for (int i = 0; i < visible_entries; ++i) {
 		const auto& m = map_list[base + i];
@@ -149,4 +168,6 @@ void song_select::draw() {
 		format_floats(selected_map.star_rating)
 	);
 	DrawTextEx(font36_b, stats_3.c_str(), { 4,112 }, 18, 0, WHITE);
+
+	DrawText(std::to_string(current_position).c_str(), 20, 256, 32, WHITE);
 }

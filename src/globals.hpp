@@ -9,6 +9,7 @@
 enum GAME_STATES {
 	MAIN_MENU,
 	OPTIONS,
+	IMPORTING,
 	SONG_SELECT,
 	INGAME,
 	SCORE_SCREEN
@@ -25,6 +26,7 @@ inline float screen_width = 1024;
 inline float screen_height = 768;
 inline bool isNPOTSupported = false;
 inline GAME_STATES game_state = MAIN_MENU;
+inline bool importing_map = false;
 
 inline Music music;
 inline TexWithSrc background;

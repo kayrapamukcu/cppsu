@@ -12,8 +12,7 @@
 int main()
 {	
 	std::ios::sync_with_stdio(false);
-	
-	auto game_state = MAIN_MENU;
+
 	// INIT SEQUENCE
 	db::init();
 	
@@ -26,7 +25,7 @@ int main()
 		isNPOTSupported = false;
 	} else {
 		std::cout << "NPOT supported!\n";
-		isNPOTSupported = false;
+		isNPOTSupported = true;
 	}
 
 	font12 = LoadFontEx("resources/aller.ttf", 12, NULL, 0);
@@ -41,6 +40,7 @@ int main()
 	font24_l = LoadFontEx("resources/aller_light.ttf", 24, NULL, 0);
 	font36_l = LoadFontEx("resources/aller_light.ttf", 36, NULL, 0);
 
+	std::vector<std::string> maps_getting_added;
 	song_select_top_bar = LoadTextureCompat("resources/mode-osu-small.png");
 	background = LoadTextureCompat((db::fs_path / "resources" / "default_bg.jpg").string().c_str());
 
@@ -52,14 +52,16 @@ int main()
 	SetTargetFPS(1000);
 	UpdateMusicStream(music);
 	PlayMusicStream(music);
-	
-	db::reconstruct_db();
 
 	while (!WindowShouldClose())
 	{
 		UpdateMusicStream(music);
 		BeginDrawing();
 		ClearBackground(DARKGRAY);
+		if (IsKeyPressed(KEY_F5)) {
+			game_state = MAIN_MENU;
+			db::reconstruct_db();
+		}
 		switch (game_state) {
 			case MAIN_MENU:
 				DrawTextEx(font36, "Welcome to cppsu!", { 32, 32 }, 36, 0, WHITE);
@@ -67,14 +69,26 @@ int main()
 				DrawTextEx(font24, "Press N to import maps!", { 32, screen_height - 32 }, 24, 0, WHITE);
 				if (IsKeyPressed(KEY_M)) {
 					song_select::init();
-					game_state = SONG_SELECT;
 				}
 				if (IsKeyPressed(KEY_N)) {
-					game_state = MAIN_MENU;
-					if (db::add_to_db()) {
-						song_select::init();
-						game_state = SONG_SELECT;
+					if (db::add_to_db(maps_getting_added)) {
 					}
+				}
+			break;
+			case IMPORTING:
+				DrawRectangleGradientH(0, 0, screen_width, screen_height, YELLOW, ORANGE);
+				DrawTextEx(font36, "Importing maps...", { 32, 32 }, 72, 0, BLACK);
+				
+				for (int i = 0; i < maps_getting_added.size(); i++) {
+
+					DrawTextEx(font24, maps_getting_added[i].c_str(), {32, (float)128 + i * 24}, 24, 0, BLACK);
+					i++;
+				}
+				if(importing_map == false) {
+					maps_getting_added.clear();
+					song_select::init();
+					game_state = SONG_SELECT;
+					break;
 				}
 			break;
 			case SONG_SELECT:
@@ -82,10 +96,8 @@ int main()
 					game_state = MAIN_MENU;
 				}
 				if (IsKeyPressed(KEY_N)) {
-					game_state = MAIN_MENU;
-					if (db::add_to_db()) {
-						song_select::init();
-						game_state = SONG_SELECT;
+					
+					if (db::add_to_db(maps_getting_added)) {
 					}
 				}
 

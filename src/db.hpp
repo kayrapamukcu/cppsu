@@ -14,7 +14,7 @@ struct file_struct {
 	std::string bg_photo_name;
 
 	int preview_time = 0;
-	int beatmap_set_id = 0;
+	int beatmap_set_id = -99;
 	int beatmap_id = 0;
 
 	float hp = 5.0f;
@@ -50,7 +50,7 @@ public:
 		std::vector<std::string> r;
 		for (auto& e : std::filesystem::directory_iterator(p)) {
 			if (e.path().extension() == ".osu") {
-				std::filesystem::path relative_path = e.path().parent_path().filename() / e.path().filename();
+				std::filesystem::path relative_path = e.path().filename();
 				r.push_back(relative_path.generic_string());
 			}
 		}
@@ -59,11 +59,12 @@ public:
 
 	static void reconstruct_db();
 	static bool append_set_to_db(int set_id);
-	static bool add_to_db();
+	static bool add_to_db(std::vector<std::string>& maps_getting_added);
 	static void read_db(std::vector<file_struct>& db);
 	static file_struct read_file_metadata(const std::filesystem::path& p);
 
 
 	static inline std::filesystem::path fs_path;
 	static inline std::mutex g_dbFileMutex;
+	static inline std::mutex g_import_msgs_mtx;
 };
