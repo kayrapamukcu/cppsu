@@ -16,9 +16,11 @@ class song_select {
 		static float entry_row_height;
 		static double current_position;
 		static float scroll_speed;
-		static double map_space_normalized;
 	
 		static int map_list_size;
 		static int selected_mapset;
 		static file_struct selected_map;
+
+		static int y_offset;
+		static int max_base;
 };

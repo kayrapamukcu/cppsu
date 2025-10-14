@@ -20,6 +20,11 @@ struct TexWithSrc {
 	Rectangle src{ 0,0,0,0 };
 };
 
+struct Notice {
+	std::string text;
+	float time_left;
+};
+
 // Global variables
 
 inline float screen_width = 1024;
@@ -43,6 +48,8 @@ inline Font font36_b;
 inline Font font12_l;
 inline Font font24_l;
 inline Font font36_l;
+
+inline std::vector<Notice> notices;
 
 // Helper functions
 

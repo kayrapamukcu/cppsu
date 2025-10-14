@@ -8,6 +8,8 @@
 #include "db.hpp";
 #include "globals.hpp"
 #include "song_select.hpp"
+#include <chrono>
+
 
 int main()
 {	
@@ -41,6 +43,7 @@ int main()
 	font36_l = LoadFontEx("resources/aller_light.ttf", 36, NULL, 0);
 
 	std::vector<std::string> maps_getting_added;
+	
 	song_select_top_bar = LoadTextureCompat("resources/mode-osu-small.png");
 	background = LoadTextureCompat((db::fs_path / "resources" / "default_bg.jpg").string().c_str());
 
@@ -56,6 +59,9 @@ int main()
 	while (!WindowShouldClose())
 	{
 		UpdateMusicStream(music);
+		if (IsKeyPressed(KEY_F4)) {
+			ToggleFullscreen();
+		}
 		BeginDrawing();
 		ClearBackground(DARKGRAY);
 		if (IsKeyPressed(KEY_F5)) {
@@ -85,6 +91,7 @@ int main()
 					i++;
 				}
 				if(importing_map == false) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(300));
 					maps_getting_added.clear();
 					song_select::init();
 					game_state = SONG_SELECT;
@@ -100,6 +107,11 @@ int main()
 					if (db::add_to_db(maps_getting_added)) {
 					}
 				}
+				if (IsKeyPressed(KEY_R)) {
+					game_state = MAIN_MENU;
+					db::reconstruct_db();
+					song_select::init();
+				}
 
 				song_select::update();
 				song_select::draw();
@@ -108,6 +120,31 @@ int main()
 				
 			break;
 		}
+
+		for (int i = 0; i < notices.size(); i++) {
+			auto& n = notices[i];
+			if (n.time_left < 0) {
+				notices.erase(notices.begin() + i);
+				i--;
+				continue;
+			}
+			
+			std::string lines;
+			int current_line_length = 0;
+			for (auto& n : n.text) {
+				lines += n;
+				current_line_length++;
+				if(current_line_length > 20 && n == ' ') {
+					lines += '\n';
+					current_line_length = 0;
+				}
+			}
+			DrawRectangle(766, 550, 204, 154, PURPLE);
+			DrawRectangle(768, 552, 200, 150, BLACK);
+			DrawTextEx(font36, lines.c_str(), { 772, 552 }, 18, 0, WHITE);
+			n.time_left -= GetFrameTime();
+		}
+
 		EndDrawing();
 	}
 	CloseWindow();

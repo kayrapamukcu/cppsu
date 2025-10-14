@@ -8,12 +8,13 @@
 float song_select::entry_row_height = 86.0f;
 double song_select::current_position = 0.5;
 float song_select::scroll_speed = 0.0f;
-double song_select::map_space_normalized = 0.1;
 int song_select::visible_entries = 11;
 std::vector<file_struct> song_select::map_list;
 int song_select::map_list_size = 0;
 int song_select::selected_mapset = -999;
 file_struct song_select::selected_map = file_struct();
+int song_select::y_offset = 0;
+int song_select::max_base = 0;
 
 void song_select::choose_beatmap(int idx) {
 	if (selected_mapset != map_list[idx].beatmap_set_id) {
@@ -41,69 +42,94 @@ void song_select::init() {
 	db::read_db(map_list);
 	if (map_list.empty()) {
 		std::cout << "No beatmaps found. Please import beatmaps and retry.\n";
+		Notice n;
+		n.text = "No beatmaps found. Please import beatmaps and retry.";
+		n.time_left = 5.0f;
+		notices.push_back(n);
+
 		game_state = MAIN_MENU;
 		return;
 	}
 	selected_map = map_list[0];
 	selected_mapset = -999;
 	map_list_size = (int)map_list.size();
-	map_space_normalized = 1.0 / (std::max(11, map_list_size));
-	visible_entries = std::min(11, map_list_size);
+	//visible_entries = std::min(11, map_list_size);
+	visible_entries = 11;
+	max_base = std::max(0, map_list_size - visible_entries);
+
+	y_offset = 0;
+	if (map_list_size < 11) {
+		y_offset = (10 - map_list_size) * entry_row_height / 2;
+	}
+
 	game_state = SONG_SELECT; 
 	choose_beatmap(0);
 }
 void song_select::update() {
 	if (IsKeyPressed(KEY_B)) game_state = MAIN_MENU;
-	if (IsKeyPressed(KEY_F4)) {
-		ToggleFullscreen();
-	}
+	
 	float dt = GetFrameTime();
 	scroll_speed += IsKeyPressed(KEY_DOWN) * 3.0f + IsKeyPressed(KEY_UP) * -3.0f;
 	scroll_speed -= GetMouseWheelMove();
 	scroll_speed *= std::max(0.0f, 1.0f - dt);
 
-	current_position += scroll_speed * map_space_normalized * 0.01f * (dt * 120.0f);
-	current_position = std::clamp(current_position, -4 * map_space_normalized, 0.85);
+	current_position += scroll_speed * 0.05 * (dt * 120.0f);
+	constexpr double extra_space = 3.0f;
+	if(map_list_size > 6)
+	current_position = std::clamp(current_position, -extra_space, (double)max_base + extra_space);
+	else
+	current_position = std::clamp(current_position, 0.0, (double)max_base);
 
-	double logical = current_position * map_list_size;
-	int base = std::clamp((int)std::floor(logical), 0, std::max(map_list_size - visible_entries, 0));
-	double frac = logical - base; // [0,1)
+	double pos_idx = std::clamp(current_position, 0.0, (double)max_base);
+
+	int base = (int)std::floor(current_position);//pos_idx);
+
+	float frac = current_position - base;
+	float y_origin, x_origin;
 
 	// check for clicks
 	if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
 		for (int i = 0; i < visible_entries; ++i) {
-			float y_origin = -86.0f + 32.0f + i * entry_row_height - (float)(frac * entry_row_height);
-			float x_origin = screen_width / 2.0f + abs(screen_height / 2 - y_origin) * 0.1;
-			if (GetMouseY() >= y_origin && GetMouseY() <= y_origin + 80 && GetMouseX() > x_origin) {
-				int idx = base + i;
+			y_origin = y_offset + 32.0f + i * entry_row_height - frac * entry_row_height;
+			x_origin = -24.0f + screen_width / 2.0f + abs(screen_height / 2 - y_origin) * 0.1;
+			if (GetMouseY() >= y_origin && GetMouseY() <= y_origin + 86 && GetMouseX() > x_origin) {
+				int idx = (int)base + i;
+				std::cout << "Clicked on entry " << idx << "\n";
 				if (idx >= 0 && idx < map_list_size) {
 					if (selected_map.beatmap_id != map_list[idx].beatmap_id) { // Selected new map!
 						choose_beatmap(idx);
 					}
 					else {
+						//game_state = INGAME;
+						//UnloadMusicStream(music);
+						//StopMusicStream(music);
 						// enter game
 					}
-				}
 			}
 		}
+	}
 }
 
 void song_select::draw() {
 	if (map_list.empty()) return;
 	DrawTextureCompatPro(background, { 0,0, screen_width, screen_height }, WHITE);
-	
-	// draw 11 rows
-	double logical = current_position * map_list_size;
-	int base = std::clamp((int)std::floor(logical), 0, std::max(map_list_size - visible_entries, 0));
-	double frac = logical - base;
+
+	double pos_idx = std::clamp(current_position, 0.0, (double)max_base);
+
+	int base = (int)std::floor(current_position);
+
+	float frac = current_position - base;
 	float y_origin, x_origin;
 
-
 	for (int i = 0; i < visible_entries; ++i) {
-		const auto& m = map_list[base + i];
+		int n = base + i;
+		if (n > map_list_size - 1) break;
+		if (n < 0) continue;
+		const auto& m = map_list[n];
 
-		y_origin = -86.0f + 32.0f + i * entry_row_height - (float)(frac * entry_row_height);
+		y_origin = y_offset + 32.0f + i * entry_row_height - frac * entry_row_height;
 		x_origin = screen_width / 2.0f + abs(screen_height / 2 - y_origin) * 0.1;
+
 
 		if (selected_map.beatmap_id == m.beatmap_id) {
 			x_origin -= 48.0f;
@@ -127,7 +153,6 @@ void song_select::draw() {
 		DrawTextEx(font36_b, m.difficulty.c_str(), { x_origin, y_origin + 42 }, 18, 0, WHITE);
 	}
 
-	
 	DrawTextureCompat(song_select_top_bar, { 0,0 }, WHITE);
 	DrawTextEx(font36, (selected_map.artist + " - " + selected_map.title + " [" + selected_map.difficulty + "]").c_str(), { 4, 4 }, 36, 0, WHITE);
 	DrawTextEx(font24, ("Mapped by " + selected_map.creator).c_str(), { 4, 40 }, 24, 0, WHITE);

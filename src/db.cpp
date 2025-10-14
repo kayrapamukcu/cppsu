@@ -27,12 +27,14 @@ void db::reconstruct_db() {
     std::filesystem::path maps_path = fs_path / "maps";
     if (!std::filesystem::is_directory(maps_path)) {
         std::filesystem::create_directory(maps_path);
-		std::cout << "No beatmaps found1. Please import beatmaps and retry.\n";
+		Notice n = { "No beatmaps found. Please import beatmaps and retry.", 5.0f };
+		notices.push_back(n);
         return;
     }
 
     if (std::filesystem::is_empty(maps_path)) {
-        std::cout << "No beatmaps found. Please import beatmaps and retry.\n";
+        Notice n = { "No beatmaps found. Please import beatmaps and retry.", 5.0f };
+        notices.push_back(n);
 		return;
     }
 		
@@ -55,7 +57,8 @@ void db::reconstruct_db() {
     }
 
     auto end = std::chrono::steady_clock::now();
-    std::cout << "DB reconstructed in " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "ms\n";
+
+	notices.push_back(Notice{ "Database reconstructed from " + std::to_string(total_maps) + " maps in " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()) + "ms", 10.0f });
 }
 
 std::vector<std::string> open_osz_dialog() {
@@ -94,7 +97,6 @@ bool extract_osz_to(const std::string& osz_path_w, const std::filesystem::path& 
         if (!mz_zip_reader_file_stat(&zip, i, &st)) { mz_zip_reader_end(&zip); return false; }
         if (st.m_is_directory) continue;
 
-        // st.m_filename is UTF-8 inside the zip
         std::filesystem::path outPath = dest / std::filesystem::path(st.m_filename);
         std::filesystem::create_directories(outPath.parent_path());
 
@@ -114,15 +116,7 @@ int detect_set_id(const std::filesystem::path& extracted_root, std::string osz_p
         if (e.path().extension() == ".osu") {
             auto md = db::read_file_metadata(e.path());
             if (md.beatmap_set_id > 0) return md.beatmap_set_id;
-            else /*if (isdigit(path.filename().string()[0])) {
-                // get the number at the beginning of the string
-                int index = 1;
-                std::string num = std::to_string(e.path().filename().string()[0]);
-                while (isdigit(path.filename().string()[index])) {
-                    num += path.filename().string()[index];
-                }
-                return std::stoi(num);
-            } */ {
+            else  {
                 return -1;
             }
         }
@@ -147,13 +141,15 @@ static bool finalize_import(int set_id) {
     const std::filesystem::path final_dir = db::fs_path / "maps" / std::to_string(set_id);
     
     if (set_id == -1) {
-		std::cerr << "Could not detect set ID(map file invalid/too old), import failed.\n";
+		Notice n = { "Could not detect set ID(map file invalid/too old), import failed.", 5.0f };
+		notices.push_back(n);
 		std::filesystem::remove_all(db::fs_path / "maps/_import_tmp", ec);
 		return false;
     }
     std::ifstream dbin(db::fs_path / "database.db");
     if (db_contains_set(dbin, set_id)) {
-        std::cerr << "Set already exists!!\n";
+		Notice n = { "Set " + std::to_string(set_id) + " already exists, import failed.", 5.0f };
+		notices.push_back(n);
         std::filesystem::remove_all(db::fs_path / "maps/_import_tmp", ec);
         return false;
     }
@@ -162,7 +158,7 @@ static bool finalize_import(int set_id) {
     }
     std::filesystem::rename(db::fs_path / "maps/_import_tmp", final_dir, ec);
     if (ec) {
-        std::cerr << "Rename failed (is it cross-volume / locked?): " << final_dir << " (" << ec.message() << ")\n";
+        Notice n = { "Rename failed (is it cross-volume / locked?): " + final_dir.string() + " (" + ec.message() + ")\n", 7.5f};
         std::filesystem::remove_all(db::fs_path / "maps/_import_tmp", ec);
 		return false;
     }
@@ -195,27 +191,26 @@ bool db::append_set_to_db(int set_id) {
         return true;
     }
 
-    const bool set_already_there = db_contains_set(dbin, set_id);
+    /*const bool set_already_there = db_contains_set(dbin, set_id);
     std::unordered_set<int> existing_ids;
     if (set_already_there) {
         return false;
-    }
+    }*/
 
     // Open DB for append
     std::ofstream dbout(dbpath, std::ios::app);
     if (!dbout) return false;
 
-    if (!set_already_there) {
+    //if (!set_already_there) {
         // Write the [SET] header
         dbout << "[SET]\t" << set_id
             << '\t' << head.title
             << '\t' << head.artist << '\n';
-    }
+    //}
 
-    // Append [MAP] lines (skip dup beatmap_ids if set existed)
+    // Append [MAP] lines
     for (const auto& fn : files) {
         file_struct m = read_file_metadata(set_path / fn);
-        if (set_already_there && existing_ids.count(m.beatmap_id)) continue; // dedupe
 
         dbout << "[MAP]\t" << m.audio_filename << "\t" << m.creator << "\t" << m.difficulty << "\t" << m.bg_photo_name << "\t" << m.preview_time << "\t" << m.beatmap_id << "\t" << m.hp << "\t" << m.cs << "\t" << m.od << "\t" << m.ar << "\t" << m.star_rating << "\t" << m.min_bpm << "\t" << m.avg_bpm << "\t" << m.max_bpm << "\t" << m.map_length << "\t" << m.circle_count << "\t" << m.slider_count << "\t" << m.spinner_count << "\n";
     }
@@ -253,6 +248,7 @@ bool db::add_to_db(std::vector<std::string>& maps_getting_added) {
         }
         if (failed) reconstruct_db();
         importing_map = false;
+		std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
         }).detach();
 	return true;
 }
