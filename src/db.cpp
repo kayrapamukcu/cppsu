@@ -11,7 +11,6 @@
 #include <unordered_set>
 #include "globals.hpp"
 
-
 void db::init() {
 	fs_path = std::filesystem::current_path();
 }
@@ -21,7 +20,7 @@ void db::reconstruct_db() {
     auto begin = std::chrono::steady_clock::now();
     int total_maps = 0;
     std::ofstream database(fs_path / "database.db");
-    database << "[General]\nFormat: 4\n\n" << "[Data]\n";;
+    database << "[General]\nFormat: " << DB_VERSION << "\n\n" << "[Data]\n";;
 
     // Loop over all directories
     std::filesystem::path maps_path = fs_path / "maps";
@@ -52,7 +51,7 @@ void db::reconstruct_db() {
         for (auto& c : content) { // Loop over all .osu files in directory
             total_maps++;
             file_struct data = read_file_metadata(maps_path / d / c);
-            database << "[MAP]\t" << data.audio_filename << "\t" << data.creator << "\t" << data.difficulty << "\t" << data.bg_photo_name << "\t" << data.preview_time << "\t" << data.beatmap_id << "\t" << data.hp << "\t" << data.cs << "\t" << data.od << "\t" << data.ar << "\t" << data.star_rating << "\t" << data.min_bpm << "\t" << data.avg_bpm << "\t" << data.max_bpm << "\t" << data.map_length << "\t" << data.circle_count << "\t" << data.slider_count << "\t" << data.spinner_count << "\n";
+            database << "[MAP]\t" << data.audio_filename << "\t" << data.creator << "\t" << data.difficulty << "\t" << data.bg_photo_name << "\t" << data.preview_time << "\t" << data.beatmap_id << "\t" << data.hp << "\t" << data.cs << "\t" << data.od << "\t" << data.ar << "\t" << data.slider_multiplier << "\t" << data.slider_tickrate << "\t" << data.star_rating << "\t" << data.min_bpm << "\t" << data.avg_bpm << "\t" << data.max_bpm << "\t" << data.map_length << "\t" << data.circle_count << "\t" << data.slider_count << "\t" << data.spinner_count << "\t" << data.osu_filename << "\n";
         }
     }
 
@@ -170,27 +169,22 @@ static bool finalize_import(int set_id) {
 }
 
 bool db::append_set_to_db(int set_id) {
-    std::lock_guard<std::mutex> lk(g_dbFileMutex);
-
+    //std::lock_guard<std::mutex> lk(g_dbFileMutex);
     const auto dbpath = fs_path / "database.db";
     const auto set_path = fs_path / "maps" / std::to_string(set_id);
 
     if (!std::filesystem::exists(dbpath)) {
-        reconstruct_db();
-        return true;
+        return false;
     }
     if (!std::filesystem::exists(set_path)) return false;
     auto files = get_files(set_path);
     if (files.empty()) return false;
-
     file_struct head = read_file_metadata(set_path / files[0]);    
-
     std::ifstream dbin(dbpath);
     if (!dbin) {
         reconstruct_db();
         return true;
     }
-
     /*const bool set_already_there = db_contains_set(dbin, set_id);
     std::unordered_set<int> existing_ids;
     if (set_already_there) {
@@ -200,7 +194,6 @@ bool db::append_set_to_db(int set_id) {
     // Open DB for append
     std::ofstream dbout(dbpath, std::ios::app);
     if (!dbout) return false;
-
     //if (!set_already_there) {
         // Write the [SET] header
         dbout << "[SET]\t" << set_id
@@ -211,10 +204,9 @@ bool db::append_set_to_db(int set_id) {
     // Append [MAP] lines
     for (const auto& fn : files) {
         file_struct m = read_file_metadata(set_path / fn);
-
+        
         dbout << "[MAP]\t" << m.audio_filename << "\t" << m.creator << "\t" << m.difficulty << "\t" << m.bg_photo_name << "\t" << m.preview_time << "\t" << m.beatmap_id << "\t" << m.hp << "\t" << m.cs << "\t" << m.od << "\t" << m.ar << "\t" << m.star_rating << "\t" << m.min_bpm << "\t" << m.avg_bpm << "\t" << m.max_bpm << "\t" << m.map_length << "\t" << m.circle_count << "\t" << m.slider_count << "\t" << m.spinner_count << "\n";
     }
-
     dbout.flush();
     return true;
 }
@@ -230,42 +222,166 @@ bool db::add_to_db(std::vector<std::string>& maps_getting_added) {
             extract_osz_to(f, db::fs_path / "maps/_import_tmp");
             int id = detect_set_id(db::fs_path / "maps/_import_tmp", f);
             bool ok = finalize_import(id); // true if we're actually importing a new set
+            std::cout << "finalization done\n";
             if (!failed)
                 if(ok) 
                     if (!append_set_to_db(id)) {
                         failed = true;
-						std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
+						//std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
                         maps_getting_added.emplace_back(std::string("Failed to import " + std::to_string(id) + " to database! (already exists?)"));
                     }
                     else {
-                        std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
+                        //std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
                         maps_getting_added.emplace_back(std::to_string(id) + " added successfully!");
                     }
                 else {
-                    std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
+                    //std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
                     maps_getting_added.emplace_back(std::string("Failed to import " + std::to_string(id) + " to database! (already exists/map too old/invalid)"));
                 }
         }
         if (failed) reconstruct_db();
         importing_map = false;
-		std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
         }).detach();
 	return true;
 }
 
-static inline void chomp_cr(std::string& s) {
-    // CHOMP
-    if (!s.empty() && s.back() == '\r') s.pop_back();
-}
+bool db::remove_from_db(int method, int mapID, int setID) {
+    const auto dbpath = fs_path / "database.db";
+    if (!std::filesystem::exists(dbpath)) return false;
 
-static inline void to_int(std::string_view s, int& out) {
-    std::from_chars(s.data(), s.data() + s.size(), out, 10);
-}
+    //std::lock_guard<std::mutex> lk(g_dbFileMutex);
 
-static inline void to_float(std::string_view s, float& out) {
-    std::from_chars(s.data(), s.data() + s.size(), out);
-}
+    std::ifstream in(dbpath);
+    if (!in) return false;
 
+    std::vector<std::string> out;
+    out.reserve(128);
+
+    std::string line;
+
+    // per-set buffering so we can drop [SET] if last MAP gets removed
+    std::string pending_set;
+    std::vector<std::string> pending_maps;
+    int current_set_id = -1;
+    bool modified = false;
+
+    auto parse_set_id = [](const std::string& l) -> int {
+        size_t t1 = l.find('\t');
+        size_t t2 = (t1 == std::string::npos) ? std::string::npos : l.find('\t', t1 + 1);
+        if (t1 == std::string::npos || t2 == std::string::npos) return -1;
+        try { return std::stoi(l.substr(t1 + 1, t2 - (t1 + 1))); }
+        catch (...) { return -1; }
+        };
+
+    auto parse_map_id = [](const std::string& l) -> int {
+        // beatmap_id is field #6
+        if (l.rfind("[MAP]\t", 0) != 0) return -1;
+        size_t start = 6;
+        for (int f = 0; f < 5; ++f) {
+            size_t p = l.find('\t', start);
+            if (p == std::string::npos) return -1;
+            start = p + 1;
+        }
+        size_t p6 = l.find('\t', start);
+        try { return std::stoi(l.substr(start, (p6 == std::string::npos ? l.size() : p6) - start)); }
+        catch (...) { return -1; }
+        };
+
+    auto flush_set = [&]() {
+        if (pending_set.empty()) return;
+        // method==0: if this is the target set, drop entire set
+        if (method == 0 && current_set_id == setID) {
+            modified = true; // dropped whole set
+        }
+        else {
+            // keep set only if it still has maps
+            if (!pending_maps.empty()) {
+                out.push_back(pending_set);
+                out.insert(out.end(), pending_maps.begin(), pending_maps.end());
+            }
+            else {
+                if (method == 1) modified = true; // set became empty after deleting its last map
+            }
+        }
+        pending_set.clear();
+        pending_maps.clear();
+        current_set_id = -1;
+        };
+
+    while (std::getline(in, line)) {
+        if (line.rfind("[SET]\t", 0) == 0) {
+            // finish previous set (if any), then start new
+            flush_set();
+            pending_set = line;
+            current_set_id = parse_set_id(line);
+            continue;
+        }
+
+        if (line.rfind("[MAP]\t", 0) == 0) {
+            // if we are deleting the whole set, skip all its maps
+            if (method == 0 && current_set_id == setID) {
+                modified = true;
+                continue;
+            }
+            // single-map delete?
+            if (method == 1) {
+                int bm = parse_map_id(line);
+                if (bm == mapID) {
+                    modified = true;
+                    continue; // drop this one
+                }
+            }
+            // keep map (buffered until we know if set remains)
+            pending_maps.push_back(line);
+            continue;
+        }
+
+        // header/blank/other lines: flush any pending set, then keep the line
+        flush_set();
+        out.push_back(line);
+    }
+    // EOF: flush last set
+    flush_set();
+
+    if (!modified) return false;
+
+	// stop mp3
+    UnloadMusicStream(music);
+    music = LoadMusicStream("resources/mus_menu.ogg");
+
+    auto set_path = fs_path / "maps" / std::to_string(setID);
+
+    if (method == 0) {
+        std::error_code ec;
+        std::filesystem::remove_all(set_path, ec);
+    }
+    else if (method == 1) {
+		std::error_code ec;
+        auto content = get_files(set_path);
+        for (auto& c : content) {
+            if(read_file_metadata(set_path / c).beatmap_id == mapID) {
+                std::filesystem::remove(set_path / c, ec);
+                break;
+			}
+        }
+
+        // if set is now empty, remove its directory
+		bool has_osu = false;
+        for (const auto& entry : std::filesystem::directory_iterator(set_path)) {
+            if (entry.path().extension() == ".osu") {
+                has_osu = true;
+                break;
+            }
+        }
+        if(!has_osu)
+			std::filesystem::remove_all(set_path, ec);
+        
+    }
+
+    std::ofstream outF(dbpath, std::ios::trunc);
+    for (auto& l : out) outF << l << '\n';
+    return true;
+}
 
 void db::read_db(std::vector<file_struct>& db) {
     db.clear();
@@ -285,7 +401,7 @@ void db::read_db(std::vector<file_struct>& db) {
         {
             std::string_view v = std::string_view(line).substr(8);
             to_int(v, format_version);
-            if (format_version != 4) { std::cout << "Database format not supported, reconstructing...\n"; reconstruct_db(); return; }
+            if (format_version != DB_VERSION) { std::cout << "Database format not supported, reconstructing...\n"; reconstruct_db(); return; }
         }
 
         std::string cur_title, cur_artist;
@@ -308,17 +424,17 @@ void db::read_db(std::vector<file_struct>& db) {
 
             if (s.starts_with("[MAP]")) {
                 std::string_view content = s.substr(5);
-                std::array<std::string_view, 18> parts{};
+                std::array<std::string_view, 21> parts{};
                 int index = 0;
                 size_t start = 0;
                 size_t pos = content.find('\t', start);
                 start = pos + 1;
-                while (index < 17) {
+                while (index < 20) {
                     size_t pos = content.find('\t', start);
                     parts[index++] = content.substr(start, pos - start);
                     start = pos + 1;
                 }
-                parts[17] = content.substr(start);
+                parts[20] = content.substr(start);
 
                 file_struct rec{};
                 rec.audio_filename = std::string(parts[0]);
@@ -328,6 +444,7 @@ void db::read_db(std::vector<file_struct>& db) {
                 rec.creator = std::string(parts[1]);
                 rec.difficulty = std::string(parts[2]);
                 rec.bg_photo_name = std::string(parts[3]);
+				rec.osu_filename = std::string(parts[20]);
 
                 int i_tmp;
                 float f_tmp;
@@ -338,16 +455,16 @@ void db::read_db(std::vector<file_struct>& db) {
                 to_float(parts[7], f_tmp); rec.cs = f_tmp;
                 to_float(parts[8], f_tmp); rec.od = f_tmp;
                 to_float(parts[9], f_tmp); rec.ar = f_tmp;
-                to_float(parts[10], f_tmp); rec.star_rating = f_tmp;
-                to_float(parts[11], f_tmp); rec.min_bpm = f_tmp;
-                to_float(parts[12], f_tmp); rec.avg_bpm = f_tmp;
-                to_float(parts[13], f_tmp); rec.max_bpm = f_tmp;
-                to_int(parts[14], i_tmp); rec.map_length = (uint16_t)i_tmp;
-                to_int(parts[15], i_tmp); rec.circle_count = (uint16_t)i_tmp;
-                to_int(parts[16], i_tmp); rec.slider_count = (uint16_t)i_tmp;
-                to_int(parts[17], i_tmp); rec.spinner_count = (uint16_t)i_tmp;
-
-
+                to_float(parts[10], f_tmp); rec.slider_multiplier = f_tmp;
+                to_float(parts[11], f_tmp); rec.slider_tickrate = f_tmp;
+                to_float(parts[12], f_tmp); rec.star_rating = f_tmp;
+                to_float(parts[13], f_tmp); rec.min_bpm = f_tmp;
+                to_float(parts[14], f_tmp); rec.avg_bpm = f_tmp;
+                to_float(parts[15], f_tmp); rec.max_bpm = f_tmp;
+                to_int(parts[16], i_tmp); rec.map_length = (uint16_t)i_tmp;
+                to_int(parts[17], i_tmp); rec.circle_count = (uint16_t)i_tmp;
+                to_int(parts[18], i_tmp); rec.slider_count = (uint16_t)i_tmp;
+                to_int(parts[19], i_tmp); rec.spinner_count = (uint16_t)i_tmp;
 
                 db.push_back(std::move(rec));
                 continue;
@@ -371,7 +488,7 @@ file_struct db::read_file_metadata(const std::filesystem::path& p) {
         void (*set)(file_struct&, std::string_view);
     };
 
-    static constexpr std::array<Handler, 13> handlerList = { {
+    static constexpr std::array<Handler, 15> handlerList = { {
         {"AudioFilename",      [](auto& m, std::string_view v) { m.audio_filename = std::string(v); }},
         {"Title",       [](auto& m, std::string_view v) { m.title = std::string(v); }},
         {"Artist",      [](auto& m, std::string_view v) { m.artist = std::string(v); }},
@@ -384,6 +501,8 @@ file_struct db::read_file_metadata(const std::filesystem::path& p) {
         {"CircleSize",         [](auto& m, std::string_view v) { float x; to_float(v,x); m.cs = x; }},
         {"OverallDifficulty",  [](auto& m, std::string_view v) { float x; to_float(v,x); m.od = x; }},
         {"ApproachRate",       [](auto& m, std::string_view v) { float x; to_float(v,x); m.ar = x; }},
+        {"SliderMultiplier",       [](auto& m, std::string_view v) { float x; to_float(v,x); m.slider_multiplier = x; }},
+        {"SliderTickrate",       [](auto& m, std::string_view v) { float x; to_float(v,x); m.slider_tickrate = x; }},
         {"StarRating",         [](auto& m, std::string_view v) { float x; to_float(v,x); m.star_rating = x; }},
     } };
 
@@ -528,6 +647,8 @@ file_struct db::read_file_metadata(const std::filesystem::path& p) {
         md.avg_bpm = 120.0f;
         md.min_bpm = md.max_bpm = md.avg_bpm;
     }
+
+	md.osu_filename = p.filename().string();
 
     return md;
 }

@@ -1,38 +1,10 @@
 #pragma once
 
+#include "globals.hpp"
 #include <vector>
 #include <string>
 #include <filesystem>
-#include <mutex>
-
-struct file_struct {
-	std::string audio_filename;
-	std::string title;
-	std::string artist;
-	std::string creator;
-	std::string difficulty;
-	std::string bg_photo_name;
-
-	int preview_time = 0;
-	int beatmap_set_id = -99;
-	int beatmap_id = 0;
-
-	float hp = 5.0f;
-	float cs = 4.0f;
-	float od = 8.0f;
-	float ar = 9.0f;
-
-	float star_rating = 5.0f;
-
-	float avg_bpm = 120.0f;
-	float min_bpm = 120.0f;
-	float max_bpm = 120.0f;
-
-	uint16_t map_length = 0;
-	uint16_t circle_count = 0;
-	uint16_t slider_count = 0;
-	uint16_t spinner_count = 0;
-};
+//#include <mutex>
 
 class db {
 public:
@@ -60,11 +32,9 @@ public:
 	static void reconstruct_db();
 	static bool append_set_to_db(int set_id);
 	static bool add_to_db(std::vector<std::string>& maps_getting_added);
+	static bool remove_from_db(int method, int mapID, int setID);
 	static void read_db(std::vector<file_struct>& db);
 	static file_struct read_file_metadata(const std::filesystem::path& p);
 
-
 	static inline std::filesystem::path fs_path;
-	static inline std::mutex g_dbFileMutex;
-	static inline std::mutex g_import_msgs_mtx;
 };

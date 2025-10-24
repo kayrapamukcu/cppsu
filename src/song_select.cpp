@@ -4,6 +4,7 @@
 #include "globals.hpp"
 #include <format>
 #include <rlgl.h>
+#include "ingame.hpp"
 
 float song_select::entry_row_height = 86.0f;
 double song_select::current_position = 0.5;
@@ -12,6 +13,7 @@ int song_select::visible_entries = 11;
 std::vector<file_struct> song_select::map_list;
 int song_select::map_list_size = 0;
 int song_select::selected_mapset = -999;
+int song_select::selected_map_list_index = 0;
 file_struct song_select::selected_map = file_struct();
 int song_select::y_offset = 0;
 int song_select::max_base = 0;
@@ -27,43 +29,52 @@ void song_select::choose_beatmap(int idx) {
 			game_state = MAIN_MENU;
 			return;
 		}
+	}
+	else selected_map = map_list[idx];
+	if(IsMusicStreamPlaying(music) == false) {
 		PlayMusicStream(music);
 		SeekMusicStream(music, selected_map.preview_time / 1000.0f);
 	}
-	else selected_map = map_list[idx];
-
+	selected_map_list_index = idx;
 	selected_mapset = map_list[idx].beatmap_set_id;
 	UnloadTexture(background.tex);
 	std::filesystem::path bg_path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / selected_map.bg_photo_name;
 	background = LoadTextureCompat(bg_path.string().c_str());
 }
 
-void song_select::init() {
-	db::read_db(map_list);
-	if (map_list.empty()) {
-		std::cout << "No beatmaps found. Please import beatmaps and retry.\n";
-		Notice n;
-		n.text = "No beatmaps found. Please import beatmaps and retry.";
-		n.time_left = 5.0f;
-		notices.push_back(n);
+void song_select::enter_game(file_struct map) {
+	StopMusicStream(music);
+	game_state = INGAME;
+	g_ingame = new ingame(map);
+}
 
-		game_state = MAIN_MENU;
-		return;
+void song_select::init(bool alreadyInitialized) {
+	if (!alreadyInitialized) {
+		db::read_db(map_list);
+		if (map_list.empty()) {
+			std::cout << "No beatmaps found. Please import beatmaps and retry.\n";
+			Notice n;
+			n.text = "No beatmaps found. Please import beatmaps and retry.";
+			n.time_left = 5.0f;
+			notices.push_back(n);
+
+			game_state = MAIN_MENU;
+			return;
+		}
+		selected_map = map_list[0];
+		selected_mapset = -999;
+		map_list_size = (int)map_list.size();
+		//visible_entries = std::min(11, map_list_size);
+		visible_entries = 11;
+		max_base = std::max(0, map_list_size - visible_entries);
+
+		y_offset = 0;
+		if (map_list_size < 11) {
+			y_offset = (10 - map_list_size) * entry_row_height / 2;
+		}
 	}
-	selected_map = map_list[0];
-	selected_mapset = -999;
-	map_list_size = (int)map_list.size();
-	//visible_entries = std::min(11, map_list_size);
-	visible_entries = 11;
-	max_base = std::max(0, map_list_size - visible_entries);
-
-	y_offset = 0;
-	if (map_list_size < 11) {
-		y_offset = (10 - map_list_size) * entry_row_height / 2;
-	}
-
-	game_state = SONG_SELECT; 
-	choose_beatmap(0);
+	game_state = SONG_SELECT;
+	choose_beatmap(selected_map_list_index);
 }
 void song_select::update() {
 	if (IsKeyPressed(KEY_B)) game_state = MAIN_MENU;
@@ -98,13 +109,12 @@ void song_select::update() {
 				if (idx >= 0 && idx < map_list_size) {
 					if (selected_map.beatmap_id != map_list[idx].beatmap_id) { // Selected new map!
 						choose_beatmap(idx);
+						break;
 					}
 					else {
-						//game_state = INGAME;
-						//UnloadMusicStream(music);
-						//StopMusicStream(music);
-						// enter game
-					}
+						enter_game(selected_map);
+						return;
+				}
 			}
 		}
 	}

@@ -9,15 +9,14 @@
 #include "globals.hpp"
 #include "song_select.hpp"
 #include <chrono>
-
+#include <thread>
+#include "ingame.hpp"
 
 int main()
 {	
 	std::ios::sync_with_stdio(false);
-
 	// INIT SEQUENCE
 	db::init();
-	
 	InitWindow(1024, 768, "cppsu!");
 	InitAudioDevice();
 	std::cout << "Version: " << rlGetVersion() << "\n";
@@ -74,7 +73,7 @@ int main()
 				DrawTextEx(font24, "Press M to switch to the song select screen!", { 32, screen_height - 64 }, 24, 0, WHITE);
 				DrawTextEx(font24, "Press N to import maps!", { 32, screen_height - 32 }, 24, 0, WHITE);
 				if (IsKeyPressed(KEY_M)) {
-					song_select::init();
+					song_select::init(false);
 				}
 				if (IsKeyPressed(KEY_N)) {
 					if (db::add_to_db(maps_getting_added)) {
@@ -93,7 +92,7 @@ int main()
 				if(importing_map == false) {
 					std::this_thread::sleep_for(std::chrono::milliseconds(300));
 					maps_getting_added.clear();
-					song_select::init();
+					song_select::init(false);
 					game_state = SONG_SELECT;
 					break;
 				}
@@ -110,14 +109,29 @@ int main()
 				if (IsKeyPressed(KEY_R)) {
 					game_state = MAIN_MENU;
 					db::reconstruct_db();
-					song_select::init();
+					song_select::init(false);
+				}
+
+				if (IsKeyPressed(KEY_K)) { // delete entire set
+					game_state = MAIN_MENU;
+					db::remove_from_db(0, song_select::selected_map.beatmap_id, song_select::selected_map.beatmap_set_id);
+					song_select::init(false);
+				}
+				if (IsKeyPressed(KEY_L)) { // delete single map
+					game_state = MAIN_MENU;
+					db::remove_from_db(1, song_select::selected_map.beatmap_id, song_select::selected_map.beatmap_set_id);
+					song_select::init(false);
 				}
 
 				song_select::update();
 				song_select::draw();
-			break;
+			break; 
 			case INGAME:
-				
+				g_ingame->update();
+				g_ingame->draw();
+				if (IsKeyPressed(KEY_B)) {
+					song_select::init(true);
+				}
 			break;
 		}
 

@@ -3,8 +3,41 @@
 #include "raylib.h"
 #include <vector>
 #include <string>
+#include <format>
 
 // Enums and structs
+
+struct file_struct {
+	std::string audio_filename;
+	std::string title;
+	std::string artist;
+	std::string creator;
+	std::string difficulty;
+	std::string bg_photo_name;
+	std::string osu_filename;
+
+	int preview_time = 0;
+	int beatmap_set_id = -99;
+	int beatmap_id = 0;
+
+	float hp = 5.0f;
+	float cs = 4.0f;
+	float od = 8.0f;
+	float ar = 9.0f;
+	float slider_multiplier = 1.4f;
+	float slider_tickrate = 1.0f;
+
+	float star_rating = 5.0f;
+
+	float avg_bpm = 120.0f;
+	float min_bpm = 120.0f;
+	float max_bpm = 120.0f;
+
+	uint16_t map_length = 0;
+	uint16_t circle_count = 0;
+	uint16_t slider_count = 0;
+	uint16_t spinner_count = 0;
+};
 
 enum GAME_STATES {
 	MAIN_MENU,
@@ -26,6 +59,9 @@ struct Notice {
 };
 
 // Global variables
+
+inline constexpr int DB_VERSION = 6;
+inline constexpr std::string CLIENT_VERSION = "a2025.1024";
 
 inline float screen_width = 1024;
 inline float screen_height = 768;
@@ -49,9 +85,25 @@ inline Font font12_l;
 inline Font font24_l;
 inline Font font36_l;
 
+class ingame;
+inline ingame* g_ingame = nullptr;
+
 inline std::vector<Notice> notices;
 
 // Helper functions
+
+static inline void chomp_cr(std::string& s) {
+	// CHOMP
+	if (!s.empty() && s.back() == '\r') s.pop_back();
+}
+
+static inline void to_int(std::string_view s, int& out) {
+	std::from_chars(s.data(), s.data() + s.size(), out, 10);
+}
+
+static inline void to_float(std::string_view s, float& out) {
+	std::from_chars(s.data(), s.data() + s.size(), out);
+}
 
 static inline std::string format_floats(float v) {
 	std::string s = std::format("{:.2f}", v);

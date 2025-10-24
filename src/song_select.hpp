@@ -6,7 +6,8 @@
 class song_select {
 	public:
 		static void choose_beatmap(int idx);
-		static void init();
+		static void enter_game(file_struct map);
+		static void init(bool alreadyInitialized);
 		static void update();
 		static void draw();
 
@@ -17,6 +18,7 @@ class song_select {
 		static double current_position;
 		static float scroll_speed;
 	
+		static int selected_map_list_index;
 		static int map_list_size;
 		static int selected_mapset;
 		static file_struct selected_map;
