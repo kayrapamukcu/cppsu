@@ -62,13 +62,14 @@ int main()
 			ToggleFullscreen();
 		}
 		BeginDrawing();
-		ClearBackground(DARKGRAY);
+		
 		if (IsKeyPressed(KEY_F5)) {
 			game_state = MAIN_MENU;
 			db::reconstruct_db();
 		}
 		switch (game_state) {
 			case MAIN_MENU:
+				ClearBackground(DARKGRAY);
 				DrawTextEx(font36, "Welcome to cppsu!", { 32, 32 }, 36, 0, WHITE);
 				DrawTextEx(font24, "Press M to switch to the song select screen!", { 32, screen_height - 64 }, 24, 0, WHITE);
 				DrawTextEx(font24, "Press N to import maps!", { 32, screen_height - 32 }, 24, 0, WHITE);
@@ -99,6 +100,7 @@ int main()
 			break;
 			case SONG_SELECT:
 				if (IsKeyPressed(KEY_B)) {
+					delete g_ingame;
 					game_state = MAIN_MENU;
 				}
 				if (IsKeyPressed(KEY_N)) {
@@ -106,7 +108,7 @@ int main()
 					if (db::add_to_db(maps_getting_added)) {
 					}
 				}
-				if (IsKeyPressed(KEY_R)) {
+				if (IsKeyPressed(KEY_F5)) {
 					game_state = MAIN_MENU;
 					db::reconstruct_db();
 					song_select::init(false);

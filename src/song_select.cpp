@@ -43,6 +43,7 @@ void song_select::choose_beatmap(int idx) {
 }
 
 void song_select::enter_game(file_struct map) {
+	scroll_speed = 0.0f;
 	StopMusicStream(music);
 	game_state = INGAME;
 	g_ingame = new ingame(map);

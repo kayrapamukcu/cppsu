@@ -11,44 +11,52 @@ enum HitObjectType {
 };
 
 struct Circle {
-	float x,y;
+	Vector2 pos;
 	uint8_t state; // 0 = active, 1 = 300, 2 = 100, 3 = 50, 4 = miss
 	uint8_t color_idx;
 };
 
 struct Slider {
-	float x, y;
+	Vector2 pos;
 	uint8_t state;
 	uint8_t color_idx;
-	std::vector<int> points;
+	uint8_t repeat_count;
+	unsigned char slider_type; // 0 = linear, 1 = bezier, 2 = perfect
+	std::vector<Vector2> points;
+	std::vector<Vector2> path;
 };
 
 struct Spinner {
-	int time;
+	int end_time; // replace this, unnecessary
 };
 
 struct HitObjectEntry {
 	int time;
+	int end_time;
 	HitObjectType type;
+	int idx;
 };
 
 struct TimingPoints {
 	int time;
+	float slider_velocity;
+	uint8_t volume;
 };
 
 class ingame {
 public:
 	ingame(file_struct map);
-	static void update();
-	static void draw();
+	void update();
+	void draw();
 private:
 	file_struct map_info;
-	float mapTime = -1000.0f;
+	float map_time = -1000.0f;
+	float map_begin_time = -1000.0f;
 	int combo = 0;
-	int maxCombo = 0;
+	int max_combo = 0;
 	float acc = 100.0f;
 	int hit300s = 0, hit100s = 0, hit50s = 0, misses = 0;
-	std::array<Color, 8> hitColors = { // Green, Blue, Red, Yellow defaults
+	std::array<Color, 8> hit_colors = { // Green, Blue, Red, Yellow defaults
 		Color{ 0, 255, 0, 255 },
 		Color{ 0, 0, 255, 255 },
 		Color{ 255, 0, 0, 255 },
@@ -58,11 +66,17 @@ private:
 		Color{ 0, 0, 0, 255 },
 		Color{ 0, 0, 0, 255 }
 	};
-	int approachRateMilliseconds = 450;
-	int hitWindow300 = 200;
-	int hitWindow100 = 200;
-	int hitWindow50 = 200;
+	int hit_color_count = 0;
+	int hit_color_current = 0;
+	int approach_rate_milliseconds = 450;
+	int hit_window_300 = 200;
+	int hit_window_100 = 200;
+	int hit_window_50 = 200;
 
+	float circle_radius = 200.0f;
+
+	int on_object = 0;
+	bool song_init = false;
 	std::vector<TimingPoints> timing_points;
 
 	std::vector<HitObjectEntry> hit_objects;

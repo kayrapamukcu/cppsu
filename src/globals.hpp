@@ -60,8 +60,8 @@ struct Notice {
 
 // Global variables
 
-inline constexpr int DB_VERSION = 6;
-inline constexpr std::string CLIENT_VERSION = "a2025.1024";
+inline constexpr int DB_VERSION = 6; // todo: add old map support by assigning new map IDs
+inline constexpr std::string_view CLIENT_VERSION = "a2025.1025";
 
 inline float screen_width = 1024;
 inline float screen_height = 768;
@@ -72,6 +72,10 @@ inline bool importing_map = false;
 inline Music music;
 inline TexWithSrc background;
 inline TexWithSrc song_select_top_bar;
+
+inline float playfield_scale = screen_height / 480.0f;
+inline float playfield_offset_x = (screen_width - 512.0f * playfield_scale) / 2.0f;
+inline float playfield_offset_y = (screen_height - 384.0f * playfield_scale) / 2.0f + 8.0f * playfield_scale;
 
 inline Font font12;
 inline Font font24;
@@ -152,24 +156,18 @@ static TexWithSrc LoadBackgroundCompat(const std::string& path) {
 	Image img = LoadImage(path.c_str());
 	if (!img.data) return out;
 
-	// On low-end GPUs, just make it small & cheap.
-	// (You can also do this unconditionally, not just for NPOT.)
 	const bool isNPOT = !IsPOT(img.width) || !IsPOT(img.height);
 	if (isNPOT && !isNPOTSupported) {
-		// Use NN for speed (bicubic is slower).
-		ImageFormat(&img, PIXELFORMAT_UNCOMPRESSED_R8G8B8);  // RGB is fine for a bg
+		ImageFormat(&img, PIXELFORMAT_UNCOMPRESSED_R8G8B8);
 		ImageResizeNN(&img, 1024, 768);
 	}
 
 	out.tex = LoadTextureFromImage(img);
 	UnloadImage(img);
 
-	// Important: src must match the ACTUAL texture size
 	out.src = { 0, 0, (float)out.tex.width, (float)out.tex.height };
 
-	// Prevent tiling if sampling ever goes past edges
 	SetTextureWrap(out.tex, TEXTURE_WRAP_CLAMP);
-	// Cheapest sampling
 	SetTextureFilter(out.tex, TEXTURE_FILTER_POINT);
 
 	return out;
