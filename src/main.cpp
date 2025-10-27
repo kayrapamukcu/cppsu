@@ -46,13 +46,13 @@ int main()
 	song_select_top_bar = LoadTextureCompat("resources/mode-osu-small.png");
 	background = LoadTextureCompat((db::fs_path / "resources" / "default_bg.jpg").string().c_str());
 
-	music = LoadMusicStream("resources/mus_menu.ogg");
+	music = LoadMusicStreamFromRam("resources/mus_menu.ogg");
 	
 	screen_width = (float)GetScreenWidth();
 	screen_height = (float)GetScreenHeight();
 
 	SetTargetFPS(1000);
-	UpdateMusicStream(music);
+	// UpdateMusicStream(music);
 	PlayMusicStream(music);
 
 	while (!WindowShouldClose())

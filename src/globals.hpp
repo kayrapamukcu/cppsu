@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <format>
+#include <fstream>
 
 // Enums and structs
 
@@ -17,8 +18,8 @@ struct file_struct {
 	std::string osu_filename;
 
 	int preview_time = 0;
-	int beatmap_set_id = -99;
-	int beatmap_id = 0;
+	int beatmap_set_id = -1;
+	int beatmap_id = -1;
 
 	float hp = 5.0f;
 	float cs = 4.0f;
@@ -60,7 +61,7 @@ struct Notice {
 
 // Global variables
 
-inline constexpr int DB_VERSION = 6; // todo: add old map support by assigning new map IDs
+inline constexpr int DB_VERSION = 7; // todo: add old map support by assigning new map IDs
 inline constexpr std::string_view CLIENT_VERSION = "a2025.1025";
 
 inline float screen_width = 1024;
@@ -116,7 +117,7 @@ static inline std::string format_floats(float v) {
 	return s;
 }
 
-static std::string format_length(uint16_t length) {
+static inline std::string format_length(uint16_t length) {
 	int minutes = length / 60;
 	int seconds = length % 60;
 	return std::string(minutes < 10 ? "0" : "") + std::to_string(minutes) + ":" + (seconds < 10 ? "0" : "") + std::to_string(seconds);
@@ -125,11 +126,54 @@ static std::string format_length(uint16_t length) {
 static inline bool IsPOT(int v) { return v > 0 && (v & (v - 1)) == 0; }
 static inline int NextPOT(int v) { if (v <= 1) return 1; v--; v |= v >> 1; v |= v >> 2; v |= v >> 4; v |= v >> 8; v |= v >> 16; return v + 1; }
 
-static void DrawBackgroundCompat() {
+static inline void DrawBackgroundCompat() {
 	if (!isNPOTSupported) {
 		DrawTexture(background.tex, 0, 0, WHITE);
 	} else
 		DrawTexturePro(background.tex, background.src, { 0,0, screen_width, screen_height }, { 0,0 }, 0.0f, WHITE);
+}
+
+static inline void DrawTextureCompatPro(const TexWithSrc& t, Rectangle dst, Color tint) {
+	DrawTexturePro(t.tex, t.src, dst, { 0,0 }, 0.0f, tint);
+}
+
+static inline void DrawTextureCompat(const TexWithSrc& t, Vector2 pos, Color tint) {
+	DrawTexturePro(t.tex, t.src, { pos.x, pos.y, t.src.width, t.src.height }, { 0,0 }, 0.0f, tint);
+}
+
+inline std::vector<unsigned char> g_musicData;
+
+static Music LoadMusicStreamFromRam(const char* path) {
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    if (!file) {
+        TraceLog(LOG_ERROR, "Failed to open music file: %s", path);
+        return {0};
+    }
+
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    g_musicData.resize(size);
+    if (!file.read(reinterpret_cast<char*>(g_musicData.data()), size)) {
+        TraceLog(LOG_ERROR, "Failed to read music file: %s", path);
+        return {0};
+    }
+
+    // choose correct extension
+    const char* ext = nullptr;
+    std::string pathstr = path;
+    if (pathstr.ends_with(".ogg")) ext = ".ogg";
+    else if (pathstr.ends_with(".mp3")) ext = ".mp3";
+    else ext = ".wav";
+
+    // load from RAM buffer
+    Music m = LoadMusicStreamFromMemory(ext, g_musicData.data(), (int)g_musicData.size());
+    return m;
+}
+
+static void UnloadMusicStreamFromRam(Music& music) {
+    UnloadMusicStream(music);
+    g_musicData.clear();
 }
 
 static TexWithSrc LoadTextureCompat(const std::string& path) {
@@ -171,12 +215,4 @@ static TexWithSrc LoadBackgroundCompat(const std::string& path) {
 	SetTextureFilter(out.tex, TEXTURE_FILTER_POINT);
 
 	return out;
-}
-
-static void DrawTextureCompatPro(const TexWithSrc& t, Rectangle dst, Color tint) {
-	DrawTexturePro(t.tex, t.src, dst, { 0,0 }, 0.0f, tint);
-}
-
-static void DrawTextureCompat(const TexWithSrc& t, Vector2 pos, Color tint) {
-	DrawTexturePro(t.tex, t.src, { pos.x, pos.y, t.src.width, t.src.height }, { 0,0 }, 0.0f, tint);
 }

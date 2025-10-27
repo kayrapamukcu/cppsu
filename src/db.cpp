@@ -10,10 +10,7 @@
 #include <mutex>
 #include <unordered_set>
 #include "globals.hpp"
-
-static inline void write_to_file(std::ofstream& database, file_struct data) {
-    database << "[MAP]\t" << data.audio_filename << "\t" << data.creator << "\t" << data.difficulty << "\t" << data.bg_photo_name << "\t" << data.preview_time << "\t" << data.beatmap_id << "\t" << data.hp << "\t" << data.cs << "\t" << data.od << "\t" << data.ar << "\t" << data.slider_multiplier << "\t" << data.slider_tickrate << "\t" << data.star_rating << "\t" << data.min_bpm << "\t" << data.avg_bpm << "\t" << data.max_bpm << "\t" << data.map_length << "\t" << data.circle_count << "\t" << data.slider_count << "\t" << data.spinner_count << "\t" << data.osu_filename << "\n";
-}
+#include "song_select.hpp"
 
 void db::init() {
 	fs_path = std::filesystem::current_path();
@@ -24,7 +21,7 @@ void db::reconstruct_db() {
     auto begin = std::chrono::steady_clock::now();
     int total_maps = 0;
     std::ofstream database(fs_path / "database.db");
-    database << "[General]\nFormat: " << DB_VERSION << "\n\n" << "[Data]\n";;
+    database << "[General]\nFormat: " << DB_VERSION << "\nLastID:" << last_assigned_id << "\n" << "[Data]\n";;
 
     // Loop over all directories
     std::filesystem::path maps_path = fs_path / "maps";
@@ -57,6 +54,7 @@ void db::reconstruct_db() {
             file_struct data = read_file_metadata(maps_path / d / c);
             write_to_file(database, data);
         }
+        
     }
 
     auto end = std::chrono::steady_clock::now();
@@ -64,16 +62,9 @@ void db::reconstruct_db() {
 	notices.push_back(Notice{ "Database reconstructed from " + std::to_string(total_maps) + " maps in " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()) + "ms", 10.0f });
 }
 
-std::vector<std::string> open_osz_dialog() {
+std::vector<std::string> db::open_osz_dialog() {
     const char* filter_patterns[1] = { "*.osz" };
-    const char* result = tinyfd_openFileDialog(
-        "Import beatmap",
-        "",
-        1,
-        filter_patterns,
-        "osu! Beatmap Files",
-        1
-    );
+    const char* result = tinyfd_openFileDialog("Import beatmap", "", 1, filter_patterns, "osu! Beatmap Files", 1);
     if (!result) return {};
 
 	std::vector<std::string> files;
@@ -87,7 +78,7 @@ std::vector<std::string> open_osz_dialog() {
     return files;
 }
 
-bool extract_osz_to(const std::string& osz_path_w, const std::filesystem::path& dest) {
+bool db::extract_osz_to(const std::string& osz_path_w, const std::filesystem::path& dest) {
     // Miniz takes UTF-8 path. Convert:
     std::string osz_path_utf8(osz_path_w.begin(), osz_path_w.end());
 
@@ -113,7 +104,7 @@ bool extract_osz_to(const std::string& osz_path_w, const std::filesystem::path& 
     return true;
 }
 
-int detect_set_id(const std::filesystem::path& extracted_root, std::string osz_path) {
+int db::detect_set_id(const std::filesystem::path& extracted_root, std::string osz_path) {
     auto path = std::filesystem::path(osz_path);
     for (auto& e : std::filesystem::recursive_directory_iterator(extracted_root)) {
         if (e.path().extension() == ".osu") {
@@ -127,7 +118,7 @@ int detect_set_id(const std::filesystem::path& extracted_root, std::string osz_p
     return -1;
 }
 
-static bool db_contains_set(std::ifstream& dbin, int set_id) {
+bool db::db_contains_set(std::ifstream& dbin, int set_id) {
     dbin.clear();
     dbin.seekg(0, std::ios::beg);
     std::string needle = "[SET]\t" + std::to_string(set_id);
@@ -138,17 +129,11 @@ static bool db_contains_set(std::ifstream& dbin, int set_id) {
     return false;
 }
 
-static bool finalize_import(int set_id) {
+bool db::finalize_import(int set_id) {
     // Move from _import_tmp to maps/
     std::error_code ec;
     const std::filesystem::path final_dir = db::fs_path / "maps" / std::to_string(set_id);
     
-    if (set_id == -1) {
-		Notice n = { "Could not detect set ID(map file invalid/too old), import failed.", 5.0f };
-		notices.push_back(n);
-		std::filesystem::remove_all(db::fs_path / "maps/_import_tmp", ec);
-		return false;
-    }
     std::ifstream dbin(db::fs_path / "database.db");
     if (db_contains_set(dbin, set_id)) {
 		Notice n = { "Set " + std::to_string(set_id) + " already exists, import failed.", 5.0f };
@@ -165,7 +150,12 @@ static bool finalize_import(int set_id) {
         std::filesystem::remove_all(db::fs_path / "maps/_import_tmp", ec);
 		return false;
     }
-	
+    if (set_id == -1) {
+        Notice n = { "Could not detect set ID(map file invalid/too old), import failed.", 5.0f };
+        notices.push_back(n);
+        std::filesystem::remove_all(db::fs_path / "maps/_import_tmp", ec);
+        return false;
+    }
     
 
     std::cout << "Imported set " << set_id << "\n";
@@ -189,11 +179,6 @@ bool db::append_set_to_db(int set_id) {
         reconstruct_db();
         return true;
     }
-    /*const bool set_already_there = db_contains_set(dbin, set_id);
-    std::unordered_set<int> existing_ids;
-    if (set_already_there) {
-        return false;
-    }*/
 
     // Open DB for append
     std::ofstream dbout(dbpath, std::ios::app);
@@ -203,8 +188,7 @@ bool db::append_set_to_db(int set_id) {
         dbout << "[SET]\t" << set_id
             << '\t' << head.title
             << '\t' << head.artist << '\n';
-    //}
-
+    
     // Append [MAP] lines
     for (const auto& fn : files) {
         file_struct m = read_file_metadata(set_path / fn);
@@ -213,6 +197,27 @@ bool db::append_set_to_db(int set_id) {
     }
     dbout.flush();
     return true;
+}
+
+void db::update_last_ids() {
+    std::fstream in(fs_path / "database.db", std::ios::in | std::ios::out);
+    // move to line 2 (counting from 0)
+
+    std::string line;
+	int lineNum = 0;
+	std::streampos pos = 0;
+
+    while (std::getline(in, line)) {
+        chomp_cr(line);
+        if (lineNum == 2) break;
+        pos = in.tellg(); // record start of next line
+        lineNum++;
+    }
+
+    if (line.starts_with("LastID:")) {
+        in.seekp(pos + std::streamoff(7));
+		in.write(std::to_string(last_assigned_id).c_str(), 10);
+    }
 }
 
 bool db::add_to_db(std::vector<std::string>& maps_getting_added) {
@@ -242,6 +247,10 @@ bool db::add_to_db(std::vector<std::string>& maps_getting_added) {
                     //std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
                     maps_getting_added.emplace_back(std::string("Failed to import " + std::to_string(id) + " to database! (already exists/map too old/invalid)"));
                 }
+            if (id > 999999999) {
+                last_assigned_id += 32;
+                update_last_ids();
+            }
         }
         if (failed) reconstruct_db();
         importing_map = false;
@@ -349,9 +358,10 @@ bool db::remove_from_db(int method, int mapID, int setID) {
 
     if (!modified) return false;
 
+    song_select::selected_map_list_index--;
 	// stop mp3
-    UnloadMusicStream(music);
-    music = LoadMusicStream("resources/mus_menu.ogg");
+    UnloadMusicStreamFromRam(music);
+    music = LoadMusicStreamFromRam("resources/mus_menu.ogg");
 
     auto set_path = fs_path / "maps" / std::to_string(setID);
 
@@ -392,15 +402,15 @@ void db::read_db(std::vector<file_struct>& db) {
     //try {
         auto begin = std::chrono::steady_clock::now();
         std::ifstream in(fs_path / "database.db");
-        if (!in) { std::cout << "No database found, reconstructing...\n"; reconstruct_db(); return; }
+        if (!in) { std::cout << "No database found, reconstructing...\n"; reconstruct_db(); }
 
         std::string line;
         int to_reserve = 0;
         // Header
-        if (!std::getline(in, line)) { reconstruct_db(); return; } // [General]
-        if (!std::getline(in, line)) { reconstruct_db(); return; } // Format: x
+        if (!std::getline(in, line)) { reconstruct_db(); } // [General]
+        if (!std::getline(in, line)) { reconstruct_db(); } // Format: x
         chomp_cr(line);
-        if (!line.starts_with("Format: ")) { reconstruct_db(); return; }
+        if (!line.starts_with("Format: ")) { reconstruct_db(); }
         int format_version = 0;
         {
             std::string_view v = std::string_view(line).substr(8);
@@ -408,6 +418,11 @@ void db::read_db(std::vector<file_struct>& db) {
             if (format_version != DB_VERSION) { std::cout << "Database format not supported, reconstructing...\n"; reconstruct_db(); return; }
         }
 
+        std::getline(in, line);
+        if(line.starts_with("LastID:")) {
+            std::string_view v = std::string_view(line).substr(7);
+            to_int(v, last_assigned_id);
+		}
         std::string cur_title, cur_artist;
         int beatmap_set_id = 0;
 
@@ -653,6 +668,12 @@ file_struct db::read_file_metadata(const std::filesystem::path& p) {
     }
 
 	md.osu_filename = p.filename().string();
-
+    if (md.beatmap_set_id < 0) {
+        md.beatmap_set_id = last_assigned_id;
+	}
+    if (md.beatmap_id < 0) {
+        md.beatmap_id = last_assigned_id + last_assigned_map_id;
+		last_assigned_map_id++;
+    }
     return md;
 }

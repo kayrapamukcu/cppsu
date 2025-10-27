@@ -32,12 +32,14 @@ ingame::ingame(file_struct map) {
 
     while (std::getline(infile, line)) {
         chomp_cr(line);
+		if (line == "[HitObjects]") {
+			break;
+		}
         if (state < 1) {
             if (line == "[TimingPoints]") state = 1;
             continue;
         }
-
-        if (state == 1) {
+        else if (state == 1) {
 			if (line.empty()) continue;
 			if (line == "[Colours]") {
 				state = 2;
@@ -70,7 +72,7 @@ ingame::ingame(file_struct map) {
 			to_int(parts[5], volume);
 			timing_points.push_back(TimingPoints{ std::stoi(std::string(parts[0])), slider_mult, (uint8_t)volume });
         }
-        if (state == 2){
+        else if (state == 2){
             if (line.starts_with("Combo")) {
 				size_t idx = line.find(":");
 				size_t first_comma = line.find(",", idx);
@@ -81,9 +83,7 @@ ingame::ingame(file_struct map) {
             }
         }
 
-        if (line == "[HitObjects]") {
-            break;
-        }
+        
     }
 	if (hit_color_count < 2) hit_color_count = 4;
 	timing_points.shrink_to_fit();
@@ -191,7 +191,6 @@ ingame::ingame(file_struct map) {
 			break;
 		}
 	}
-	// music = LoadMusicStream((std::filesystem::current_path() / "maps" / std::to_string(map.beatmap_set_id) / map.audio_filename).string().c_str());
 	map_begin_time = -GetTime() * 1000.0f - 1000.0f;
 	
 	hit_objects.shrink_to_fit();
@@ -206,8 +205,9 @@ void ingame::update() {
 		PlayMusicStream(music);
 		song_init = true;
 	}
-	else {
-	}
+	//implement skip (5000 ms / bpm)
+	
+	
 	return;
 }
 
@@ -215,74 +215,76 @@ void ingame::update() {
 void ingame::draw(){
 	ClearBackground(BLACK);
 	DrawRectangleLines(playfield_offset_x, playfield_offset_y, playfield_scale * 512, playfield_scale * 384, WHITE);
-	
-	//if (song_init) {
-		for(int i = on_object; i < hit_objects.size(); i++) {
-			auto& ho = hit_objects[i];
-			if (ho.end_time < map_time - hit_window_50 * 0.5f) {
-				on_object = i;
-				continue;
-			}
-			if (ho.time - approach_rate_milliseconds > map_time + hit_window_50*0.5f) break; // only draw objects if they are hittable / in the approach rate time period
-																													 
-			unsigned char alpha = (unsigned char)std::clamp(255.0f * ((map_time - (ho.time - approach_rate_milliseconds)) / (0.666f * approach_rate_milliseconds)), 0.0f, 255.0f);
-			
-			switch (ho.type) {
-			case CIRCLE: {
-				auto& c = circles[ho.idx];
-				float approach_scale = (ho.time - map_time) / approach_rate_milliseconds * circle_radius * 3 + circle_radius;
-				Color color = hit_colors[c.color_idx];
-				color.a = alpha;
-				DrawCircleLinesV( c.pos, approach_scale, color);
-				DrawCircleV(c.pos, circle_radius , color);
-				break;
-			}
-			case SLIDER: {
-				auto& s = sliders[ho.idx];
-				float approach_scale = (ho.time - map_time) / approach_rate_milliseconds * circle_radius * 3 + circle_radius;
-				Color color = hit_colors[s.color_idx];
-				color.a = alpha;
-				DrawCircleLinesV(s.pos, approach_scale, color);
-				
-				Color body_color = { 80, 80, 80, 0.5f*alpha };
-				switch (s.slider_type) {
-				case 'L': {
-					DrawLineEx(s.pos, s.points[0], circle_radius*2, body_color);
-					break;
-				}
-				case 'P': {
-					//DrawCircleSector(s.pos, circle_radius, 0.0f, 120.0f, 36, body_color);
-					break;
-				}
-				case 'C':
-				case 'B': {
-					// DrawSplineBezierQuadratic(s.points.data(), (int)s.points.size(), circle_radius*2, body_color);
-					break;
-				}
-				default:
-					break;
-				}
-				DrawCircleV(s.pos, circle_radius, color);
-				DrawCircleV(s.points[s.points.size() - 1], circle_radius, color);
 
+	int visible_end = hit_objects.size();
+
+	while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time - hit_window_50 * 0.5f) {
+		on_object++;
+	}
+
+	while (visible_end < (int)hit_objects.size() && hit_objects[visible_end].time - approach_rate_milliseconds <= map_time + hit_window_50 * 0.5f) {
+		visible_end++;
+	}
+
+	for (int i = visible_end - 1; i >= on_object; i--) {
+		auto& ho = hit_objects[i];
+
+		unsigned char alpha = (unsigned char)std::clamp(255.0f * ((map_time - (ho.time - approach_rate_milliseconds)) / (0.666f * approach_rate_milliseconds)), 0.0f, 255.0f);
+
+		switch (ho.type) {
+		case CIRCLE: {
+			auto& c = circles[ho.idx];
+			float approach_scale = std::max(0.0f, (ho.time - map_time)) / approach_rate_milliseconds * circle_radius * 3 + circle_radius;
+			Color color = hit_colors[c.color_idx];
+			color.a = alpha;
+			DrawCircleLinesV( c.pos, approach_scale, color);
+			DrawCircleV(c.pos, circle_radius , color);
+			break;
+		}
+		case SLIDER: {
+			auto& s = sliders[ho.idx];
+			float approach_scale = std::max(0.0f, (ho.time - map_time)) / approach_rate_milliseconds * circle_radius * 3 + circle_radius;
+			Color color = hit_colors[s.color_idx];
+			color.a = alpha;
+			DrawCircleLinesV(s.pos, approach_scale, color);
+			
+			Color body_color = { 80, 80, 80, 0.5f*alpha };
+			switch (s.slider_type) { // TODO: Learn math bro...
+			case 'L': {
+				DrawLineEx(s.pos, s.points[0], circle_radius*2, body_color);
 				break;
 			}
-			case SPINNER: {
-				alpha = (unsigned char)std::clamp(255.0f * ((map_time - (ho.time - approach_rate_milliseconds)) / (approach_rate_milliseconds)), 0.0f, 255.0f);
-				auto& s = spinners[ho.idx];
-				float x, y;
-				x = 256 * playfield_scale + playfield_offset_x;
-				y = 192 * playfield_scale + playfield_offset_y;
-				DrawCircleV(Vector2{ x, y }, 256 * playfield_scale, { 64, 128, 255, alpha });
-				DrawCircleLinesV(Vector2{ x, y }, 192 * (ho.end_time - map_time) / (ho.end_time - ho.time) + 16, { 255, 255, 255, alpha });
-				DrawCircleV(Vector2{ x, y }, 16, { 255, 255, 255, alpha });
+			case 'P': {
+				//DrawCircleSector(s.pos, circle_radius, 0.0f, 120.0f, 36, body_color);
+				break;
+			}
+			case 'C':
+			case 'B': {
+				// DrawSplineBezierQuadratic(s.points.data(), (int)s.points.size(), circle_radius*2, body_color);
 				break;
 			}
 			default:
 				break;
 			}
+			DrawCircleV(s.pos, circle_radius, color);
+			DrawCircleV(s.points[s.points.size() - 1], circle_radius, color);
+
+			break;
 		}
-	//}
-	//else DrawText("Ingame - waiting for map to start", 32, 32, 24, BLACK);
+		case SPINNER: {
+			alpha = (unsigned char)std::clamp(255.0f * ((map_time - (ho.time - approach_rate_milliseconds)) / (approach_rate_milliseconds)), 0.0f, 255.0f);
+			auto& s = spinners[ho.idx];
+			float x, y;
+			x = 256 * playfield_scale + playfield_offset_x;
+			y = 192 * playfield_scale + playfield_offset_y;
+			DrawCircleV(Vector2{ x, y }, 256 * playfield_scale, { 64, 128, 255, alpha });
+			DrawCircleLinesV(Vector2{ x, y }, 192 * (ho.end_time - map_time) / (ho.end_time - ho.time) + 16, { 255, 255, 255, alpha });
+			DrawCircleV(Vector2{ x, y }, 16, { 255, 255, 255, alpha });
+			break;
+		}
+		default:
+			break;
+		}
+	}
 	return;
 }

@@ -22,8 +22,8 @@ void song_select::choose_beatmap(int idx) {
 	if (selected_mapset != map_list[idx].beatmap_set_id) {
 		selected_map = map_list[idx];
 		std::filesystem::path audio_path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / selected_map.audio_filename;
-		UnloadMusicStream(music);
-		music = LoadMusicStream(audio_path.string().c_str());
+		UnloadMusicStreamFromRam(music);
+		music = LoadMusicStreamFromRam(audio_path.string().c_str());
 		if(!music.ctxData) {
 			std::cout << "Failed to load music: " << audio_path << "\n";
 			game_state = MAIN_MENU;
