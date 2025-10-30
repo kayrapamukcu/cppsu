@@ -12,13 +12,11 @@ enum HitObjectType {
 
 struct Circle {
 	Vector2 pos;
-	uint8_t state; // 0 = active, 1 = 300, 2 = 100, 3 = 50, 4 = miss
-	uint8_t color_idx;
+	uint8_t color_idx;  // 0 = active, 1 = 300, 2 = 100, 3 = 50, 4 = miss
 };
 
 struct Slider {
 	Vector2 pos;
-	uint8_t state;
 	uint8_t color_idx;
 	uint8_t repeat_count;
 	unsigned char slider_type; // 0 = linear, 1 = bezier, 2 = perfect
@@ -34,7 +32,8 @@ struct HitObjectEntry {
 	int time;
 	int end_time;
 	HitObjectType type;
-	int idx;
+	uint16_t idx;
+	uint8_t state; // 0 = unhit, 1 = 300, 2 = 100, 3 = 50, 4 = miss
 };
 
 struct TimingPoints {
@@ -46,6 +45,7 @@ struct TimingPoints {
 class ingame {
 public:
 	ingame(file_struct map);
+	void check_hit();
 	void update();
 	void draw();
 private:
@@ -75,8 +75,11 @@ private:
 
 	float circle_radius = 200.0f;
 
+	int map_first_object_time = 0;
 	int on_object = 0;
-	bool song_init = false;
+	
+	bool skippable = false;
+	uint8_t song_init = 0;
 	std::vector<TimingPoints> timing_points;
 
 	std::vector<HitObjectEntry> hit_objects;
@@ -84,4 +87,7 @@ private:
 	std::vector<Circle> circles;
 	std::vector<Slider> sliders;
 	std::vector<Spinner> spinners;
+
+	bool key1_down = false;
+	bool key2_down = false;
 };

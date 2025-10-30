@@ -241,16 +241,16 @@ bool db::add_to_db(std::vector<std::string>& maps_getting_added) {
                     }
                     else {
                         //std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
+                        if (id > 999999999) {
+                            last_assigned_id += 32;
+                            update_last_ids();
+                        }
                         maps_getting_added.emplace_back(std::to_string(id) + " added successfully!");
                     }
                 else {
                     //std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
                     maps_getting_added.emplace_back(std::string("Failed to import " + std::to_string(id) + " to database! (already exists/map too old/invalid)"));
                 }
-            if (id > 999999999) {
-                last_assigned_id += 32;
-                update_last_ids();
-            }
         }
         if (failed) reconstruct_db();
         importing_map = false;
@@ -397,6 +397,20 @@ bool db::remove_from_db(int method, int mapID, int setID) {
     return true;
 }
 
+void db::get_last_assigned_id() {
+    std::ifstream in(fs_path / "database.db");;
+    if (!in) return;
+	std::string line;
+    while (std::getline(in, line)) {
+        chomp_cr(line);
+        if (line.starts_with("LastID:")) {
+            std::string_view v = std::string_view(line).substr(7);
+            to_int(v, last_assigned_id);
+            return;
+        }
+	}
+}
+
 void db::read_db(std::vector<file_struct>& db) {
     db.clear();
     //try {
@@ -429,7 +443,6 @@ void db::read_db(std::vector<file_struct>& db) {
         while (std::getline(in, line)) {
             chomp_cr(line);
             std::string_view s = line;
-
             if (s.starts_with("[SET]")) {
                 size_t a = s.find('\t');
                 size_t b = s.find('\t', a + 1);
@@ -540,6 +553,7 @@ file_struct db::read_file_metadata(const std::filesystem::path& p) {
         if (line == ("[Events]")) {
             std::getline(f, line);
             std::getline(f, line);
+			if (line.starts_with("//")) break; // no bg image
             auto pos = line.find('"');
             line = line.substr(pos+1);
             line = line.substr(0, line.find('"'));

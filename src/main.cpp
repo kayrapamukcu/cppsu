@@ -77,6 +77,7 @@ int main()
 					song_select::init(false);
 				}
 				if (IsKeyPressed(KEY_N)) {
+					db::get_last_assigned_id();
 					if (db::add_to_db(maps_getting_added)) {
 					}
 				}

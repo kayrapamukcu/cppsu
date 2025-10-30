@@ -90,6 +90,9 @@ inline Font font12_l;
 inline Font font24_l;
 inline Font font36_l;
 
+inline KeyboardKey k_1 = KEY_C;
+inline KeyboardKey k_2 = KEY_V;
+
 class ingame;
 inline ingame* g_ingame = nullptr;
 

@@ -43,6 +43,7 @@ public:
 	static void update_last_ids();
 	static bool add_to_db(std::vector<std::string>& maps_getting_added);
 	static bool remove_from_db(int method, int mapID, int setID);
+	static void get_last_assigned_id();
 	static void read_db(std::vector<file_struct>& db);
 	static file_struct read_file_metadata(const std::filesystem::path& p);
 	

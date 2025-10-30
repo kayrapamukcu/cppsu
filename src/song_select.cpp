@@ -39,6 +39,9 @@ void song_select::choose_beatmap(int idx) {
 	selected_mapset = map_list[idx].beatmap_set_id;
 	UnloadTexture(background.tex);
 	std::filesystem::path bg_path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / selected_map.bg_photo_name;
+	if(bg_path.filename() == "") {
+		bg_path = db::fs_path / "resources" / "default_bg.jpg";
+	}
 	background = LoadTextureCompat(bg_path.string().c_str());
 }
 
