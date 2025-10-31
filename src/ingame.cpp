@@ -123,8 +123,11 @@ ingame::ingame(file_struct map) {
 			float x, y;
 			to_float(parts[0], x);
 			to_float(parts[1], y);
-			circles.push_back(Circle{ playfield_offset_x + x * playfield_scale, playfield_offset_y + y * playfield_scale, (uint8_t)(hit_color_current) });
-			hit_objects.push_back(HitObjectEntry{ time, time, hot, circle_cnt, 0});
+			x *= playfield_scale;
+			y *= playfield_scale;
+			x += playfield_offset_x;
+			y += playfield_offset_y;
+			hit_objects.push_back(HitObjectEntry{ hot, {x, y}, time, time, circle_cnt, hit_color_current });
 			circle_cnt++;
 			break;
 		}
@@ -149,7 +152,10 @@ ingame::ingame(file_struct map) {
 			float x, y;
 			to_float(parts[0], x);
 			to_float(parts[1], y);
-
+			x *= playfield_scale;
+			y *= playfield_scale;
+			x += playfield_offset_x;
+			y += playfield_offset_y;
 			// parse slider shape
 			auto& slider_line = slider_parts[0];
 			unsigned char shape = slider_line[0];
@@ -174,105 +180,106 @@ ingame::ingame(file_struct map) {
 				slider_line.remove_prefix(delim + 1);
 			}
 
-			sliders.push_back(Slider{ playfield_offset_x + x * playfield_scale, playfield_offset_y + y * playfield_scale, (uint8_t)(hit_color_current),(uint8_t)slider_repeat, shape, std::move(points)});
-			hit_objects.push_back(HitObjectEntry{ time, end_time, hot, slider_cnt, 0});
+			sliders.push_back(Slider{ (uint8_t)slider_repeat, shape, std::move(points)});
+			hit_objects.push_back(HitObjectEntry{ hot, {x, y}, time, end_time, slider_cnt, hit_color_current });
 			slider_cnt++;
 			break;
 		}
 		case SPINNER: 
 			int end_time;
 			to_int(sv.substr(start), end_time);
-			std::cout << "spinner time & end_time: " << time << ", " << end_time << "\n";
-			spinners.push_back(Spinner{ end_time });
-			hit_objects.push_back(HitObjectEntry{ time, end_time, hot, spinner_cnt, 0});
+			hit_objects.push_back(HitObjectEntry{ hot, {256 * playfield_scale + playfield_offset_x, 192 * playfield_scale + playfield_offset_y}, time, end_time, spinner_cnt, hit_color_current });
 			spinner_cnt++;
 			break;  
 		default:
 			break;
 		}
 	}
-	map_begin_time = -GetTime() * 1000.0f - 1000.0f;
+	map_begin_time = -GetTime() * 1000.0f * map_speed - 1000.0f;
 	
 	hit_objects.shrink_to_fit();
-	circles.shrink_to_fit();
 	sliders.shrink_to_fit();
-	spinners.shrink_to_fit();
 
 	map_first_object_time = hit_objects[0].time;
 }
 
 void ingame::check_hit() {
 	auto& ho = hit_objects[on_object];
-	float delta;
+	float delta = std::abs(map_time - ho.time);
+	if (delta > 360) return; // way too early
+
 	Vector2 mouse_pos = { (float)GetMouseX(), (float)GetMouseY() };
 	switch (ho.type) {
 	case CIRCLE: {
-		auto& c = circles[ho.idx];
-		if (CheckCollisionPointCircle(mouse_pos, c.pos, circle_radius)) {
-			delta = std::abs(map_time - ho.time);
+		
+		if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius)) {
+			
 			if (delta <= hit_window_300) {
 				std::cout << "300 with offset " << map_time - ho.time << "!\n";
-				ho.state = 1;
+				hit300s++;
+				hits.push_back({ ho.pos, HIT_300, 0.4f });
 			}
 			else if (delta <= hit_window_100) {
 				std::cout << "100 with offset " << map_time - ho.time << "!\n";
-				ho.state = 2;
+				hit100s++;
+				hits.push_back({ ho.pos, HIT_100, 0.4f });
 			}
 			else if (delta <= hit_window_50) {
 				std::cout << "50 with offset " << map_time - ho.time << "!\n";
-				ho.state = 3;
+				hit50s++;
+				hits.push_back({ ho.pos, HIT_50, 0.4f });
 			}
 			else {
 				std::cout << "miss with offset " << map_time - ho.time << "!\n";
-				ho.state = 4;
+				misses++;
+				hits.push_back({ ho.pos, MISS, 0.4f });
 			}
+			on_object++;
 		}
 		break;
 	}
 	case SLIDER: {
 		auto& s = sliders[ho.idx];
 		delta = std::abs(map_time - ho.time);
-		if (CheckCollisionPointCircle(mouse_pos, s.pos, circle_radius)) {
+		if (!s.head_hit) {
 			delta = std::abs(map_time - ho.time);
-			if (delta <= hit_window_300) {
-				std::cout << "300 with offset " << map_time - ho.time << "!\n";
-				ho.state = 1;
-			}
-			else if (delta <= hit_window_100) {
-				std::cout << "100 with offset " << map_time - ho.time << "!\n";
-				ho.state = 2;
-			}
-			else if (delta <= hit_window_50) {
-				std::cout << "50 with offset " << map_time - ho.time << "!\n";
-				ho.state = 3;
-			}
-			else {
-				std::cout << "miss with offset " << map_time - ho.time << "!\n";
-				ho.state = 4;
+			if (delta > 360) return;
+			if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius)) {
+				if (delta <= hit_window_50) {
+					std::cout << "Slider head hit! " << map_time - ho.time << "!\n";
+					combo++;
+				}
+				else {
+					std::cout << "Slider head miss!miss with offset " << map_time - ho.time << "!\n";
+					combo = 0;
+				}
 			}
 		}
 		break;
-	}
+		}
 	}
 }
 
 void ingame::update() {
-	map_time = map_begin_time + GetTime() * 1000.0f;
+	map_time = map_begin_time + GetTime() * 1000.0f * map_speed;
 	if (IsKeyPressed(KEY_Z)) {
 		std::cout << "map begin time: " << map_begin_time << " map time: " << map_time << " music time: " << GetMusicTimePlayed(music) << " first object time: " << map_first_object_time << "\n";
 	}
 	switch (song_init) {
-	case 0: // song not started
+	case 0: // song not initialized
 		if (map_time >= 0.0f) {
 			map_time = 0.0f;
 			PlayMusicStream(music);
+			if(map_speed != 1.0f) {
+				SetMusicPitch(music, map_speed);
+			}
 			song_init = 1;
 			if (map_first_object_time - 3000.0f > map_time)
 				skippable = true;
 			else song_init = 2;
 		}	
 		break;
-	case 1: // song started, but map not yet started
+	case 1: // song started playing, but map not yet begun
 		if (map_time >= map_first_object_time - 2500.0f) {
 			skippable = false;
 			song_init = 2;
@@ -289,44 +296,58 @@ void ingame::update() {
 			song_init = 2;
 		}
 		break;
-	case 2: // map begin
+	case 2: // map ongoing
 		if (IsKeyPressed(k_1)) {
-			
+			k1_down = true;
 			check_hit();
 		}
 		if (IsKeyPressed(k_2)) {
-			
+			k2_down = true;
 			check_hit();
 		}
 		if (IsKeyReleased(k_1)) {
-			
+			k1_down = false;
 		}
 		if (IsKeyReleased(k_2)) {
-			
+			k2_down = false;
 		}
-		
+
+		if (k1_down || k2_down) {
+			// implement slider & spinner behavior
+		}
+
 		break;
 	}
 }
 
-void ingame::draw(){
+void ingame::draw() {
 	ClearBackground(BLACK);
 	DrawRectangleLines(playfield_offset_x, playfield_offset_y, playfield_scale * 512, playfield_scale * 384, WHITE);
+	
+	// --- Draw objects ---
 
 	int visible_end = on_object;
 
 	if (on_object >= (int)hit_objects.size()) {
-		//if (GetMusicTimePlayed(music) > GetMusicTimeLength(music) - 1.0f) {
-		//	StopMusicStream(music);
-		//}
+		// TODO: Show results screen instead
+		accumulated_end_time += GetFrameTime();
 		DrawTextEx(font24, "Map Complete!", { screen_width / 2.0f - MeasureTextEx(font24, "Map Complete!", 24, 0).x / 2.0f, screen_height / 2.0f - 12 }, 24, 0, WHITE);
 		
 		if (hit_objects[hit_objects.size() - 1].time > GetMusicTimePlayed(music)*1000.0f + 500) {
 			StopMusicStream(music);
 		}
+
+		if (accumulated_end_time > 1.0f) {
+			// game_state = SCORE_SCREEN;
+		}
 	}
 
 	while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time - hit_window_50 * 0.5f) {
+		// missed object
+		auto& ho = hit_objects[on_object];
+		std::cout << "missed object at time " << ho.time << "\n";
+		misses++;
+		hits.push_back({ ho.pos, MISS, 0.4f });
 		on_object++;
 	}
 
@@ -338,30 +359,26 @@ void ingame::draw(){
 		auto& ho = hit_objects[i];
 
 		unsigned char alpha = (unsigned char)std::clamp(255.0f * ((map_time - (ho.time - approach_rate_milliseconds)) / (0.666f * approach_rate_milliseconds)), 0.0f, 255.0f);
-		if (ho.state != 0) {
-			DrawText("HIT!", 0, 0, 12, WHITE);
-		}
 		switch (ho.type) {
 		case CIRCLE: {
-			auto& c = circles[ho.idx];
 			float approach_scale = std::max(0.0f, (ho.time - map_time)) / approach_rate_milliseconds * circle_radius * 3 + circle_radius;
-			Color color = hit_colors[c.color_idx];
+			Color color = hit_colors[ho.color_idx];
 			color.a = alpha;
-			DrawCircleLinesV( c.pos, approach_scale, color);
-			DrawCircleV(c.pos, circle_radius , color);
+			DrawCircleLinesV(ho.pos, approach_scale, color);
+			DrawCircleV(ho.pos, circle_radius, color);
 			break;
 		}
 		case SLIDER: {
 			auto& s = sliders[ho.idx];
 			float approach_scale = std::max(0.0f, (ho.time - map_time)) / approach_rate_milliseconds * circle_radius * 3 + circle_radius;
-			Color color = hit_colors[s.color_idx];
+			Color color = hit_colors[ho.color_idx];
 			color.a = alpha;
-			DrawCircleLinesV(s.pos, approach_scale, color);
-			
-			Color body_color = { 80, 80, 80, 0.5f*alpha };
+			DrawCircleLinesV(ho.pos, approach_scale, color);
+
+			Color body_color = { 80, 80, 80, 0.5f * alpha };
 			switch (s.slider_type) { // TODO: Learn math bro...
 			case 'L': {
-				DrawLineEx(s.pos, s.points[0], circle_radius*2, body_color);
+				DrawLineEx(ho.pos, s.points[0], circle_radius * 2, body_color);
 				break;
 			}
 			case 'P': {
@@ -369,8 +386,8 @@ void ingame::draw(){
 			}
 			case 'C':
 			case 'B': {
-				if(s.points.size() == 1) {
-					DrawLineEx(s.pos, s.points[0], circle_radius*2, body_color);
+				if (s.points.size() == 1) {
+					DrawLineEx(ho.pos, s.points[0], circle_radius * 2, body_color);
 					break;
 				}
 				// DrawSplineBezierQuadratic(s.points.data(), (int)s.points.size(), circle_radius*2, body_color);
@@ -379,14 +396,14 @@ void ingame::draw(){
 			default:
 				break;
 			}
-			DrawCircleV(s.pos, circle_radius, color);
+			DrawCircleV(ho.pos, circle_radius, color);
 			DrawCircleV(s.points[s.points.size() - 1], circle_radius, color);
 
 			break;
 		}
 		case SPINNER: {
-			alpha = (unsigned char)std::clamp(255.0f * ((map_time - (ho.time - approach_rate_milliseconds)) / (approach_rate_milliseconds)), 0.0f, 255.0f);
-			auto& s = spinners[ho.idx];
+			// spinners always have an approach rate of 400ms from my testing
+			alpha = (unsigned char)std::clamp(255.0f * ((map_time - (ho.time - 400)) / (400)), 0.0f, 255.0f);
 			float x, y;
 			x = 256 * playfield_scale + playfield_offset_x;
 			y = 192 * playfield_scale + playfield_offset_y;
@@ -395,8 +412,36 @@ void ingame::draw(){
 			DrawCircleV(Vector2{ x, y }, 16, { 255, 255, 255, alpha });
 			break;
 		}
-		default:
+		}
+	}
+
+	// --- Draw hits ---
+	float frame_time = GetFrameTime();
+	for (auto it = hits.begin(); it != hits.end(); ) {
+		auto& h = *it;
+		// todo: precompute text width
+		switch (h.result) {
+		case HIT_300:
+			DrawTextEx(font24, "300", { h.pos.x - MeasureTextEx(font24, "300", 24, 0).x / 2.0f, h.pos.y }, 24, 0, BLUE);
 			break;
+		case HIT_100:
+			DrawTextEx(font24, "100", { h.pos.x - MeasureTextEx(font24, "100", 24, 0).x / 2.0f, h.pos.y }, 24, 0, GREEN);
+			break;
+		case HIT_50:
+			DrawTextEx(font24, "50", { h.pos.x - MeasureTextEx(font24, "50", 24, 0).x / 2.0f, h.pos.y }, 24, 0, YELLOW);
+			break;
+		case MISS:
+			DrawTextEx(font24, "Miss!", { h.pos.x - MeasureTextEx(font24, "Miss!", 24, 0).x / 2.0f, h.pos.y }, 24, 0, RED);
+			break;
+		}
+
+		h.time_remaining -= frame_time;
+
+		if (h.time_remaining <= 0.0f) {
+			it = hits.erase(it);
+		}
+		else {
+			++it;
 		}
 	}
 	return;

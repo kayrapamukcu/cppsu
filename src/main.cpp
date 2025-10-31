@@ -61,12 +61,12 @@ int main()
 		if (IsKeyPressed(KEY_F4)) {
 			ToggleFullscreen();
 		}
-		BeginDrawing();
-		
 		if (IsKeyPressed(KEY_F5)) {
 			game_state = MAIN_MENU;
 			db::reconstruct_db();
 		}
+		BeginDrawing();
+		
 		switch (game_state) {
 			case MAIN_MENU:
 				ClearBackground(DARKGRAY);

@@ -42,7 +42,7 @@ struct file_struct {
 
 enum GAME_STATES {
 	MAIN_MENU,
-	OPTIONS,
+	SETTINGS,
 	IMPORTING,
 	SONG_SELECT,
 	INGAME,
@@ -61,8 +61,8 @@ struct Notice {
 
 // Global variables
 
-inline constexpr int DB_VERSION = 7; // todo: add old map support by assigning new map IDs
-inline constexpr std::string_view CLIENT_VERSION = "a2025.1025";
+inline constexpr int DB_VERSION = 7;
+inline constexpr std::string_view CLIENT_VERSION = "a2025.1101";
 
 inline float screen_width = 1024;
 inline float screen_height = 768;
@@ -92,6 +92,9 @@ inline Font font36_l;
 
 inline KeyboardKey k_1 = KEY_C;
 inline KeyboardKey k_2 = KEY_V;
+
+inline bool k1_down = false;
+inline bool k2_down = false;
 
 class ingame;
 inline ingame* g_ingame = nullptr;

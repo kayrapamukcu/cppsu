@@ -17,8 +17,14 @@ int song_select::selected_map_list_index = 0;
 file_struct song_select::selected_map = file_struct();
 int song_select::y_offset = 0;
 int song_select::max_base = 0;
+std::filesystem::path song_select::loaded_bg_path;
+
+// todo: for photos, instead of scaling the entire thing down to the screen res, scale the height, and cut off the sides (or vice versa, whatever is required)
+// todo: add search
+
 
 void song_select::choose_beatmap(int idx) {
+	auto& before_tex = map_list[idx].bg_photo_name;
 	if (selected_mapset != map_list[idx].beatmap_set_id) {
 		selected_map = map_list[idx];
 		std::filesystem::path audio_path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / selected_map.audio_filename;
@@ -37,12 +43,17 @@ void song_select::choose_beatmap(int idx) {
 	}
 	selected_map_list_index = idx;
 	selected_mapset = map_list[idx].beatmap_set_id;
-	UnloadTexture(background.tex);
+
+	
 	std::filesystem::path bg_path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / selected_map.bg_photo_name;
-	if(bg_path.filename() == "") {
-		bg_path = db::fs_path / "resources" / "default_bg.jpg";
+	if (loaded_bg_path != bg_path) {
+		UnloadTexture(background.tex);
+		if (bg_path.filename() == "") {
+			bg_path = db::fs_path / "resources" / "default_bg.jpg";
+		}
+		background = LoadTextureCompat(bg_path.string().c_str());
 	}
-	background = LoadTextureCompat(bg_path.string().c_str());
+	loaded_bg_path = bg_path;
 }
 
 void song_select::enter_game(file_struct map) {
@@ -68,15 +79,15 @@ void song_select::init(bool alreadyInitialized) {
 		selected_map = map_list[0];
 		selected_mapset = -999;
 		map_list_size = (int)map_list.size();
-		//visible_entries = std::min(11, map_list_size);
 		visible_entries = 11;
 		max_base = std::max(0, map_list_size - visible_entries);
-
 		y_offset = 0;
 		if (map_list_size < 11) {
 			y_offset = (10 - map_list_size) * entry_row_height / 2;
 		}
 	}
+
+	if(IsMusicValid) SetMusicPitch(music, 1.0f);
 	game_state = SONG_SELECT;
 	choose_beatmap(selected_map_list_index);
 }
@@ -97,7 +108,7 @@ void song_select::update() {
 
 	double pos_idx = std::clamp(current_position, 0.0, (double)max_base);
 
-	int base = (int)std::floor(current_position);//pos_idx);
+	int base = (int)std::floor(current_position);
 
 	float frac = current_position - base;
 	float y_origin, x_origin;
@@ -122,6 +133,7 @@ void song_select::update() {
 			}
 		}
 	}
+	if (IsKeyPressed(KEY_ENTER)) enter_game(selected_map);
 }
 
 void song_select::draw() {
@@ -207,6 +219,4 @@ void song_select::draw() {
 		format_floats(selected_map.star_rating)
 	);
 	DrawTextEx(font36_b, stats_3.c_str(), { 4,112 }, 18, 0, WHITE);
-
-	DrawText(std::to_string(current_position).c_str(), 20, 256, 32, WHITE);
 }
