@@ -11,6 +11,7 @@
 #include <chrono>
 #include <thread>
 #include "ingame.hpp"
+#include "result_screen.hpp"
 
 int main()
 {	
@@ -20,6 +21,7 @@ int main()
 	InitWindow(1024, 768, "cppsu!");
 	InitAudioDevice();
 	std::cout << "Version: " << rlGetVersion() << "\n";
+	SetExitKey(KEY_NULL);
 
 	if(rlIsNPOTSupported() == 0) {
 		std::cout << "No NPOT!!\n";
@@ -51,7 +53,7 @@ int main()
 	screen_width = (float)GetScreenWidth();
 	screen_height = (float)GetScreenHeight();
 
-	SetTargetFPS(1000);
+	// SetTargetFPS(1000);
 	// UpdateMusicStream(music);
 	PlayMusicStream(music);
 
@@ -131,10 +133,14 @@ int main()
 			break; 
 			case INGAME:
 				g_ingame->update();
-				g_ingame->draw();
+				if(g_ingame) g_ingame->draw();
 				if (IsKeyPressed(KEY_B)) {
 					song_select::init(true);
 				}
+			break;
+			case RESULT_SCREEN: 
+				g_result_screen->update();
+				if(g_result_screen) g_result_screen->draw();
 			break;
 		}
 

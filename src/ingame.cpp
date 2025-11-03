@@ -3,8 +3,11 @@
 #include <filesystem>
 #include <iostream>
 #include <rlgl.h>
+#include "result_screen.hpp"
+#include "globals.hpp"
 
 ingame::ingame(file_struct map) {
+	// TODO : IMPLEMENT STACK LENIENCY
 	map_info = map;
 	hit_window_300 = (int)(80.0f - 6.0f * map_info.od);
 	hit_window_100 = (int)(140.0f - 8.0f * map_info.od);
@@ -127,7 +130,7 @@ ingame::ingame(file_struct map) {
 			y *= playfield_scale;
 			x += playfield_offset_x;
 			y += playfield_offset_y;
-			hit_objects.push_back(HitObjectEntry{ hot, {x, y}, time, time, circle_cnt, hit_color_current });
+			hit_objects.push_back(HitObjectEntry{ {x, y}, time, time, circle_cnt, hit_color_current, hot });
 			circle_cnt++;
 			break;
 		}
@@ -180,15 +183,15 @@ ingame::ingame(file_struct map) {
 				slider_line.remove_prefix(delim + 1);
 			}
 
-			sliders.push_back(Slider{ (uint8_t)slider_repeat, shape, std::move(points)});
-			hit_objects.push_back(HitObjectEntry{ hot, {x, y}, time, end_time, slider_cnt, hit_color_current });
+			sliders.push_back(Slider{ (uint16_t) slider_repeat, false, shape, std::move(points)});
+			hit_objects.push_back(HitObjectEntry{ {x, y}, time, end_time, slider_cnt, hit_color_current, hot });
 			slider_cnt++;
 			break;
 		}
 		case SPINNER: 
 			int end_time;
 			to_int(sv.substr(start), end_time);
-			hit_objects.push_back(HitObjectEntry{ hot, {256 * playfield_scale + playfield_offset_x, 192 * playfield_scale + playfield_offset_y}, time, end_time, spinner_cnt, hit_color_current });
+			hit_objects.push_back(HitObjectEntry{ {256 * playfield_scale + playfield_offset_x, 192 * playfield_scale + playfield_offset_y}, time, end_time, spinner_cnt, hit_color_current, hot });
 			spinner_cnt++;
 			break;  
 		default:
@@ -203,6 +206,18 @@ ingame::ingame(file_struct map) {
 	map_first_object_time = hit_objects[0].time;
 }
 
+void ingame::recalculate_acc() {
+	uint32_t total_hits = hit300s + hit100s + hit50s + misses;
+	if (total_hits == 0) {
+		accuracy = 100.0f;
+		return;
+	}
+	accuracy = (float)(hit300s * 300 + hit100s * 100 + hit50s * 50) / (float)(total_hits * 300) * 100.0f;
+
+	// also calculate score
+	score += 300 * combo;
+}
+
 void ingame::check_hit() {
 	auto& ho = hit_objects[on_object];
 	float delta = std::abs(map_time - ho.time);
@@ -213,28 +228,36 @@ void ingame::check_hit() {
 	case CIRCLE: {
 		
 		if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius)) {
-			
 			if (delta <= hit_window_300) {
 				std::cout << "300 with offset " << map_time - ho.time << "!\n";
 				hit300s++;
-				hits.push_back({ ho.pos, HIT_300, 0.4f });
+				combo++;
+				if (max_combo < combo) max_combo = combo;
+				hits.push_back({ ho.pos, draw_hit_time, HIT_300});
 			}
 			else if (delta <= hit_window_100) {
 				std::cout << "100 with offset " << map_time - ho.time << "!\n";
 				hit100s++;
-				hits.push_back({ ho.pos, HIT_100, 0.4f });
+				combo++;
+				if (max_combo < combo) max_combo = combo;
+				hits.push_back({ ho.pos, draw_hit_time, HIT_100 });
 			}
 			else if (delta <= hit_window_50) {
 				std::cout << "50 with offset " << map_time - ho.time << "!\n";
 				hit50s++;
-				hits.push_back({ ho.pos, HIT_50, 0.4f });
+				combo++;
+				if (max_combo < combo) max_combo = combo;
+				hits.push_back({ ho.pos, draw_hit_time, HIT_50 });
 			}
 			else {
 				std::cout << "miss with offset " << map_time - ho.time << "!\n";
 				misses++;
-				hits.push_back({ ho.pos, MISS, 0.4f });
+				if (max_combo < combo) max_combo = combo;
+				combo = 0;
+				hits.push_back({ ho.pos, draw_hit_time, MISS });
 			}
 			on_object++;
+			recalculate_acc();
 		}
 		break;
 	}
@@ -248,9 +271,11 @@ void ingame::check_hit() {
 				if (delta <= hit_window_50) {
 					std::cout << "Slider head hit! " << map_time - ho.time << "!\n";
 					combo++;
+					if (max_combo < combo) max_combo = combo;
 				}
 				else {
-					std::cout << "Slider head miss!miss with offset " << map_time - ho.time << "!\n";
+					std::cout << "Slider head miss! with offset " << map_time - ho.time << "!\n";
+					if (max_combo < combo) max_combo = combo;
 					combo = 0;
 				}
 			}
@@ -262,6 +287,53 @@ void ingame::check_hit() {
 
 void ingame::update() {
 	map_time = map_begin_time + GetTime() * 1000.0f * map_speed;
+
+	if (on_object >= (int)hit_objects.size()) { // Check for end of map
+		accumulated_end_time += GetFrameTime();
+
+		if (hit_objects[hit_objects.size() - 1].time > GetMusicTimePlayed(music) * 1000.0f + 500) {
+			StopMusicStream(music);
+		}
+
+		if (accumulated_end_time > 2.0f || IsKeyPressed(KEY_ESCAPE)) {
+			results_struct res;
+			res.time = std::chrono::time_point_cast<std::chrono::seconds>(std::chrono::system_clock::now());
+			res.beatmap_header = map_info.artist + " - " + map_info.title + " [" + map_info.difficulty + "]";
+			res.beatmap_header_2 = "Beatmap by " + map_info.creator;
+			res.player_name = player_name;
+			res.accuracy = accuracy;
+			res.score = score;
+			res.max_combo = max_combo;
+			res.hit300s = hit300s;
+			res.hit100s = hit100s;
+			res.hit50s = hit50s;
+			res.misses = misses;
+			// calculate rank
+			ranks rank = RANK_D;
+			int all_objects = hit300s + hit100s + hit50s + misses;
+			if (accuracy == 100.0f) rank = RANK_X;
+			if (hit300s >= all_objects * 0.9) {
+				if (misses == 0 && hit50s <= all_objects * 0.01f) rank = RANK_S;
+				else rank = RANK_A;
+			}
+			if (hit300s >= all_objects * 0.8f) {
+				if (misses == 0) rank = RANK_A;
+				rank = RANK_B;
+			}
+			if (hit300s >= all_objects * 0.6f) {
+				if (misses == 0 && hit300s >= all_objects * 0.7f) rank = RANK_B;
+				rank = RANK_C;
+			}
+			res.rank = rank;
+
+			g_result_screen = new result_screen(res);
+			delete g_ingame;
+			g_ingame = nullptr;
+			game_state = RESULT_SCREEN;
+			return;
+		}
+	}
+
 	if (IsKeyPressed(KEY_Z)) {
 		std::cout << "map begin time: " << map_begin_time << " map time: " << map_time << " music time: " << GetMusicTimePlayed(music) << " first object time: " << map_first_object_time << "\n";
 	}
@@ -291,7 +363,8 @@ void ingame::update() {
 			SeekMusicStream(music, skip_target_time / 1000.0f);
 			UpdateMusicStream(music);
 
-			map_begin_time = skip_target_time - GetTime() * 1000.0f;
+			map_begin_time = skip_target_time - GetTime() * 1000.0f * map_speed;
+
 			skippable = false;
 			song_init = 2;
 		}
@@ -318,6 +391,22 @@ void ingame::update() {
 
 		break;
 	}
+
+	while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time - hit_window_50 * 0.5f) {
+		// missed object
+		auto& ho = hit_objects[on_object];
+		std::cout << "missed object at time " << ho.time << "\n";
+		misses++;
+		combo = 0;
+		hits.push_back({ ho.pos, draw_hit_time, MISS });
+		on_object++;
+		recalculate_acc();
+	}
+
+	while (visible_end < (int)hit_objects.size() && hit_objects[visible_end].time - approach_rate_milliseconds <= map_time) {
+		visible_end++;
+	}
+
 }
 
 void ingame::draw() {
@@ -325,35 +414,6 @@ void ingame::draw() {
 	DrawRectangleLines(playfield_offset_x, playfield_offset_y, playfield_scale * 512, playfield_scale * 384, WHITE);
 	
 	// --- Draw objects ---
-
-	int visible_end = on_object;
-
-	if (on_object >= (int)hit_objects.size()) {
-		// TODO: Show results screen instead
-		accumulated_end_time += GetFrameTime();
-		DrawTextEx(font24, "Map Complete!", { screen_width / 2.0f - MeasureTextEx(font24, "Map Complete!", 24, 0).x / 2.0f, screen_height / 2.0f - 12 }, 24, 0, WHITE);
-		
-		if (hit_objects[hit_objects.size() - 1].time > GetMusicTimePlayed(music)*1000.0f + 500) {
-			StopMusicStream(music);
-		}
-
-		if (accumulated_end_time > 1.0f) {
-			// game_state = SCORE_SCREEN;
-		}
-	}
-
-	while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time - hit_window_50 * 0.5f) {
-		// missed object
-		auto& ho = hit_objects[on_object];
-		std::cout << "missed object at time " << ho.time << "\n";
-		misses++;
-		hits.push_back({ ho.pos, MISS, 0.4f });
-		on_object++;
-	}
-
-	while (visible_end < (int)hit_objects.size() && hit_objects[visible_end].time - approach_rate_milliseconds <= map_time) {
-		visible_end++;
-	}
 
 	for (int i = visible_end - 1; i >= on_object; i--) {
 		auto& ho = hit_objects[i];
@@ -408,7 +468,8 @@ void ingame::draw() {
 			x = 256 * playfield_scale + playfield_offset_x;
 			y = 192 * playfield_scale + playfield_offset_y;
 			DrawCircleV(Vector2{ x, y }, 256 * playfield_scale, { 64, 128, 255, alpha });
-			DrawCircleLinesV(Vector2{ x, y }, 192 * (ho.end_time - map_time) / (ho.end_time - ho.time) + 16, { 255, 255, 255, alpha });
+			auto radius = (map_time < ho.time) ? 256 * playfield_scale : 240 * playfield_scale * (ho.end_time - map_time) / (ho.end_time - ho.time) + 16;
+			DrawCircleLinesV(Vector2{ x, y }, radius, { 255, 255, 255, alpha });
 			DrawCircleV(Vector2{ x, y }, 16, { 255, 255, 255, alpha });
 			break;
 		}
@@ -419,7 +480,7 @@ void ingame::draw() {
 	float frame_time = GetFrameTime();
 	for (auto it = hits.begin(); it != hits.end(); ) {
 		auto& h = *it;
-		// todo: precompute text width
+		// todo: precompute text width or use textures
 		switch (h.result) {
 		case HIT_300:
 			DrawTextEx(font24, "300", { h.pos.x - MeasureTextEx(font24, "300", 24, 0).x / 2.0f, h.pos.y }, 24, 0, BLUE);

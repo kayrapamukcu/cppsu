@@ -5,8 +5,30 @@
 #include <string>
 #include <format>
 #include <fstream>
+#include <chrono>
 
 // Enums and structs
+
+enum ranks {
+	RANK_F,
+	RANK_D,
+	RANK_C,
+	RANK_B,
+	RANK_A,
+	RANK_S,
+	RANK_X,
+	RANK_SH,
+	RANK_XH
+};
+
+enum GAME_STATES {
+	MAIN_MENU,
+	SETTINGS,
+	IMPORTING,
+	SONG_SELECT,
+	INGAME,
+	RESULT_SCREEN
+};
 
 struct file_struct {
 	std::string audio_filename;
@@ -40,13 +62,19 @@ struct file_struct {
 	uint16_t spinner_count = 0;
 };
 
-enum GAME_STATES {
-	MAIN_MENU,
-	SETTINGS,
-	IMPORTING,
-	SONG_SELECT,
-	INGAME,
-	SCORE_SCREEN
+struct results_struct {
+	std::chrono::time_point<std::chrono::system_clock, std::chrono::seconds> time;
+	std::string player_name;
+	std::string beatmap_header;
+	std::string beatmap_header_2;
+	uint32_t score = 0;
+	uint32_t max_combo = 0;
+	uint32_t hit300s = 0;
+	uint32_t hit100s = 0;
+	uint32_t hit50s = 0;
+	uint32_t misses = 0;
+	float accuracy = 0.0f;
+	ranks rank = RANK_F;
 };
 
 struct TexWithSrc {
@@ -96,8 +124,12 @@ inline KeyboardKey k_2 = KEY_V;
 inline bool k1_down = false;
 inline bool k2_down = false;
 
+inline std::string player_name = "Player";
+
 class ingame;
 inline ingame* g_ingame = nullptr;
+class result_screen;
+inline result_screen* g_result_screen = nullptr;
 
 inline std::vector<Notice> notices;
 

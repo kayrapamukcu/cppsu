@@ -534,6 +534,8 @@
     <ClCompile Include="..\..\src\db.cpp" />
     <ClCompile Include="..\..\src\ingame.cpp" />
     <ClCompile Include="..\..\src\main.cpp" />
+    <ClCompile Include="..\..\src\result_screen.cpp" />
+    <ClCompile Include="..\..\src\result_screen.hpp" />
     <ClCompile Include="..\..\src\song_select.cpp" />
   </ItemGroup>
   <ItemGroup>
