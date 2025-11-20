@@ -7,6 +7,9 @@
 #include <fstream>
 #include <chrono>
 
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
+
 // Enums and structs
 
 enum ranks {
@@ -73,6 +76,10 @@ struct results_struct {
 	uint32_t hit100s = 0;
 	uint32_t hit50s = 0;
 	uint32_t misses = 0;
+
+	uint32_t geki = 0;
+	uint32_t katu = 0;
+
 	float accuracy = 0.0f;
 	ranks rank = RANK_F;
 };
@@ -90,33 +97,34 @@ struct Notice {
 // Global variables
 
 inline constexpr int DB_VERSION = 7;
-inline constexpr std::string_view CLIENT_VERSION = "a2025.1101";
+inline constexpr std::string_view CLIENT_VERSION = "a2025.1120";
 
 inline float screen_width = 1024;
 inline float screen_height = 768;
+
+inline float screen_width_ratio = screen_width / 1024.0f;
+inline float screen_height_ratio = screen_height / 768.0f;
+
+inline float screen_scale = std::min(screen_width_ratio, screen_height_ratio);
+
 inline bool isNPOTSupported = false;
 inline GAME_STATES game_state = MAIN_MENU;
 inline bool importing_map = false;
 
 inline Music music;
 inline TexWithSrc background;
-inline TexWithSrc song_select_top_bar;
+inline Texture song_select_top_bar;
+inline Texture atlas;
+
+inline std::vector<Rectangle> tex;
 
 inline float playfield_scale = screen_height / 480.0f;
 inline float playfield_offset_x = (screen_width - 512.0f * playfield_scale) / 2.0f;
 inline float playfield_offset_y = (screen_height - 384.0f * playfield_scale) / 2.0f + 8.0f * playfield_scale;
 
-inline Font font12;
-inline Font font24;
-inline Font font36;
-
-inline Font font12_b;
-inline Font font24_b;
-inline Font font36_b;
-
-inline Font font12_l;
-inline Font font24_l;
-inline Font font36_l;
+inline Font aller_r;
+inline Font aller_l;
+inline Font aller_b;
 
 inline KeyboardKey k_1 = KEY_C;
 inline KeyboardKey k_2 = KEY_V;
@@ -253,4 +261,8 @@ static TexWithSrc LoadBackgroundCompat(const std::string& path) {
 	SetTextureFilter(out.tex, TEXTURE_FILTER_POINT);
 
 	return out;
+}
+
+static void DrawTextExScaled(Font font, const char* text, Vector2 position, float fontSize, float spacing, Color tint) {
+	DrawTextEx(font, text, { position.x * screen_width_ratio, position.y * screen_height_ratio }, fontSize * screen_scale, spacing, tint);
 }

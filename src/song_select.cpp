@@ -19,8 +19,9 @@ int song_select::y_offset = 0;
 int song_select::max_base = 0;
 std::filesystem::path song_select::loaded_bg_path;
 
-// todo: for photos, instead of scaling the entire thing down to the screen res, scale the height, and cut off the sides (or vice versa, whatever is required)
+// todo: for bg photos, instead of scaling the entire thing down to the screen res, scale the height, and cut off the sides (or vice versa, whatever is required)
 // todo: add search
+// todo: parallax bg
 
 
 void song_select::choose_beatmap(int idx) {
@@ -49,7 +50,7 @@ void song_select::choose_beatmap(int idx) {
 	if (loaded_bg_path != bg_path) {
 		UnloadTexture(background.tex);
 		if (bg_path.filename() == "") {
-			bg_path = db::fs_path / "resources" / "default_bg.jpg";
+			bg_path = db::fs_path / "resources" / "textures" / "default_bg.jpg";
 		}
 		background = LoadTextureCompat(bg_path.string().c_str());
 	}
@@ -91,6 +92,7 @@ void song_select::init(bool alreadyInitialized) {
 	game_state = SONG_SELECT;
 	choose_beatmap(selected_map_list_index);
 }
+
 void song_select::update() {
 	if (IsKeyPressed(KEY_B)) game_state = MAIN_MENU;
 	
@@ -116,9 +118,9 @@ void song_select::update() {
 	// check for clicks
 	if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
 		for (int i = 0; i < visible_entries; ++i) {
-			y_origin = y_offset + 32.0f + i * entry_row_height - frac * entry_row_height;
-			x_origin = -24.0f + screen_width / 2.0f + abs(screen_height / 2 - y_origin) * 0.1;
-			if (GetMouseY() >= y_origin && GetMouseY() <= y_origin + 86 && GetMouseX() > x_origin) {
+			y_origin = screen_height_ratio * (y_offset + 32.0f + i * entry_row_height - frac * entry_row_height);
+			x_origin = screen_width_ratio * (512.0f + abs(screen_height / 2 - y_origin) * 0.1);
+			if (GetMouseY() >= y_origin && GetMouseY() <= y_origin + entry_row_height * screen_height_ratio && GetMouseX() > x_origin) {
 				int idx = (int)base + i;
 				std::cout << "Clicked on entry " << idx << "\n";
 				if (idx >= 0 && idx < map_list_size) {
@@ -153,35 +155,39 @@ void song_select::draw() {
 		if (n < 0) continue;
 		const auto& m = map_list[n];
 
-		y_origin = y_offset + 32.0f + i * entry_row_height - frac * entry_row_height;
-		x_origin = screen_width / 2.0f + abs(screen_height / 2 - y_origin) * 0.1;
+		y_origin = screen_height_ratio * (y_offset + 32.0f + i * entry_row_height - frac * entry_row_height);
+		x_origin = screen_width_ratio * (512.0f + abs(screen_height / 2 - y_origin) * 0.1);
 
+		x_origin = floorf(x_origin);
+		y_origin = floorf(y_origin);
 
 		if (selected_map.beatmap_id == m.beatmap_id) {
-			x_origin -= 48.0f;
-			DrawRectangle(x_origin - 4, y_origin, 640, 80, WHITE);
-			DrawTextEx(font24, m.title.c_str(), { x_origin, y_origin }, 24, 0, BLACK);
-			DrawTextEx(font36, (m.artist + " // " + m.creator).c_str(), { x_origin, y_origin + 24 }, 18, 0, BLACK);
-			DrawTextEx(font36_b, m.difficulty.c_str(), { x_origin, y_origin + 42 }, 18, 0, BLACK);
+			x_origin -= 48.0f * screen_width_ratio;
+			DrawRectangle(x_origin - 4*screen_width_ratio, y_origin, 640 * screen_width_ratio, 80 * screen_height_ratio, WHITE);
+			DrawTextEx(aller_r, m.title.c_str(), { x_origin, y_origin }, 24 * screen_height_ratio, 0, BLACK);
+			DrawTextEx(aller_r, (m.artist + " // " + m.creator).c_str(), { x_origin, y_origin + 24 * screen_height_ratio }, 18 * screen_height_ratio, 0, BLACK);
+			DrawTextEx(aller_b, m.difficulty.c_str(), { x_origin, y_origin + 42 * screen_height_ratio }, 18 * screen_height_ratio, 0, BLACK);
 			continue;
 		}
 		else if (selected_mapset == m.beatmap_set_id) {
-			x_origin -= 32.0f;
-			DrawRectangle(x_origin - 4, y_origin, 640, 80, Color{ 25, 86, 209, 255 });
-			DrawTextEx(font24, m.title.c_str(), { x_origin, y_origin }, 24, 0, WHITE);
-			DrawTextEx(font36, (m.artist + " // " + m.creator).c_str(), { x_origin, y_origin + 24 }, 18, 0, WHITE);
-			DrawTextEx(font36_b, m.difficulty.c_str(), { x_origin, y_origin + 42 }, 18, 0, WHITE);
+			x_origin -= 32.0f * screen_width_ratio;
+			DrawRectangle(x_origin - 4*screen_width_ratio, y_origin, 640 * screen_width_ratio, 80 * screen_height_ratio, Color{ 25, 86, 209, 255 });
+			DrawTextEx(aller_r, m.title.c_str(), { x_origin, y_origin }, 24 * screen_height_ratio, 0, WHITE);
+			DrawTextEx(aller_r, (m.artist + " // " + m.creator).c_str(), { x_origin, y_origin + 24 * screen_height_ratio }, 18 * screen_height_ratio, 0, WHITE);
+			DrawTextEx(aller_b, m.difficulty.c_str(), { x_origin, y_origin + 42 * screen_height_ratio }, 18 * screen_height_ratio, 0, WHITE);
 			continue;
 		}
-		DrawRectangle(x_origin - 4, y_origin, 640, 80, ORANGE);
-		DrawTextEx(font24, m.title.c_str(), { x_origin, y_origin }, 24, 0, WHITE);
-		DrawTextEx(font36, (m.artist + " // " + m.creator).c_str(), { x_origin, y_origin + 24 }, 18, 0, WHITE);
-		DrawTextEx(font36_b, m.difficulty.c_str(), { x_origin, y_origin + 42 }, 18, 0, WHITE);
+		DrawRectangle(x_origin - 4*screen_width_ratio, y_origin, 640 * screen_width_ratio, 80 * screen_height_ratio, ORANGE);
+		DrawTextEx(aller_r, m.title.c_str(), { x_origin, y_origin }, 24 * screen_height_ratio, 0, WHITE);
+		DrawTextEx(aller_r, (m.artist + " // " + m.creator).c_str(), { x_origin, y_origin + 24 * screen_height_ratio }, 18 * screen_height_ratio, 0, WHITE);
+		DrawTextEx(aller_b, m.difficulty.c_str(), { x_origin, y_origin + 42 * screen_height_ratio }, 18 * screen_height_ratio, 0, WHITE);
 	}
 
-	DrawTextureCompat(song_select_top_bar, { 0,0 }, WHITE);
-	DrawTextEx(font36, (selected_map.artist + " - " + selected_map.title + " [" + selected_map.difficulty + "]").c_str(), { 4, 4 }, 36, 0, WHITE);
-	DrawTextEx(font24, ("Mapped by " + selected_map.creator).c_str(), { 4, 40 }, 24, 0, WHITE);
+	// DrawTextureCompatPro(song_select_top_bar, { 0,0 }, WHITE);
+	DrawTexturePro(song_select_top_bar, { 0, 0, (float)song_select_top_bar.width, (float)song_select_top_bar.height }, { 0, 0, screen_width, screen_height / 5.4f }, { 0, 0 }, 0.0f, WHITE);
+	// DrawTopBar();
+	DrawTextEx(aller_l, (selected_map.artist + " - " + selected_map.title + " [" + selected_map.difficulty + "]").c_str(), { 60*screen_scale, 4*screen_scale }, 36*screen_scale, 0, WHITE);
+	DrawTextEx(aller_l, ("Mapped by " + selected_map.creator).c_str(), { 60*screen_scale, 36*screen_scale }, 24*screen_scale, 0, WHITE);
 
 	std::string stats_1;
 	if (selected_map.min_bpm == selected_map.max_bpm)
@@ -200,7 +206,7 @@ void song_select::draw() {
 			format_floats(selected_map.avg_bpm),
 			selected_map.circle_count + selected_map.slider_count + selected_map.spinner_count
 		);
-	DrawTextEx(font24_b, stats_1.c_str(), { 4, 64 }, 24, 0, WHITE);
+	DrawTextExScaled(aller_b, stats_1.c_str(), { 4, 64 }, 24, 0, WHITE);
 
 	std::string stats_2 = std::format(
 		"Circles: {}  Sliders: {}  Spinners: {}",
@@ -208,7 +214,7 @@ void song_select::draw() {
 		selected_map.slider_count,
 		selected_map.spinner_count
 	);
-	DrawTextEx(font24, stats_2.c_str(), { 4, 88 }, 24, 0, WHITE);
+	DrawTextExScaled(aller_l, stats_2.c_str(), { 4, 88 }, 24, 0, WHITE);
 
 	std::string stats_3 = std::format(
 		"CS:{}  AR:{}  OD:{}  HP:{}  Stars:{}",
@@ -218,5 +224,5 @@ void song_select::draw() {
 		format_floats(selected_map.hp),
 		format_floats(selected_map.star_rating)
 	);
-	DrawTextEx(font36_b, stats_3.c_str(), { 4,112 }, 18, 0, WHITE);
+	DrawTextExScaled(aller_r, stats_3.c_str(), { 4,112 }, 18, 0, WHITE);
 }

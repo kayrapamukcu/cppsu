@@ -37,8 +37,9 @@ struct HitObjectEntry {
 	int time;
 	int end_time;
 	uint32_t idx;
-	uint8_t color_idx;
+	uint32_t color_idx;
 	HitObjectType type;
+	uint32_t combo_idx;
 };
 
 struct TimingPoints {
@@ -56,7 +57,7 @@ public:
 	inline void recalculate_acc();
 private:
 	static constexpr float draw_hit_time = 0.4f;
-	const float map_speed = 1.0f;
+	const float map_speed = 0.9f;
 
 	file_struct map_info;
 	float map_time = -1000.0f;
@@ -73,10 +74,10 @@ private:
 	uint32_t max_combo = 0;
 	uint32_t hit300s = 0, hit100s = 0, hit50s = 0, misses = 0;
 	std::array<Color, 8> hit_colors = { // Green, Blue, Red, Yellow defaults
-		Color{ 0, 255, 0, 255 },
-		Color{ 0, 0, 255, 255 },
-		Color{ 255, 0, 0, 255 },
-		Color{ 255, 255, 0, 255 },
+		Color{ 255, 192, 0, 255 },
+		Color{ 0, 202, 0, 255 },
+		Color{ 18, 124, 255, 255 },
+		Color{ 242, 24, 57, 255 },
 		Color{ 0, 0, 0, 255 },
 		Color{ 0, 0, 0, 255 },
 		Color{ 0, 0, 0, 255 },

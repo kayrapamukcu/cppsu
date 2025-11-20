@@ -1,61 +1,72 @@
 #include "raylib.h"
 #include "rlgl.h"
+#include "json.hpp"
+
 #include <vector>
 #include <string>
 #include <filesystem>
 #include <iostream>
 #include <format>
+#include <chrono>
+#include <thread>
+
 #include "db.hpp";
 #include "globals.hpp"
 #include "song_select.hpp"
-#include <chrono>
-#include <thread>
 #include "ingame.hpp"
 #include "result_screen.hpp"
+#include "settings.hpp"
+
+
+using json = nlohmann::json;
 
 int main()
 {	
 	std::ios::sync_with_stdio(false);
 	// INIT SEQUENCE
-	db::init();
-	InitWindow(1024, 768, "cppsu!");
+	db::init();	
+	InitWindow(screen_width, screen_height, "cppsu!");
 	InitAudioDevice();
-	std::cout << "Version: " << rlGetVersion() << "\n";
 	SetExitKey(KEY_NULL);
 
-	if(rlIsNPOTSupported() == 0) {
-		std::cout << "No NPOT!!\n";
-		isNPOTSupported = false;
-	} else {
-		std::cout << "NPOT supported!\n";
-		isNPOTSupported = true;
+	aller_r = LoadFontEx("resources/aller.ttf", 72, NULL, 0);
+	aller_l = LoadFontEx("resources/aller_light.ttf", 72, NULL, 0);
+	aller_b = LoadFontEx("resources/aller_bold.ttf", 72, NULL, 0);
+
+	SetTextureFilter(aller_r.texture, TEXTURE_FILTER_BILINEAR);
+	SetTextureFilter(aller_l.texture, TEXTURE_FILTER_BILINEAR);
+	SetTextureFilter(aller_b.texture, TEXTURE_FILTER_BILINEAR);
+
+	std::ifstream f("resources/atlas_data.json");
+	json j = json::parse(f);
+
+	atlas = LoadTexture("resources/atlas.png");
+	SetTextureFilter(atlas, TEXTURE_FILTER_BILINEAR);
+	for (auto& [filename, frame] : j["frames"].items()) {
+		Rectangle rect = {
+			(float)frame["frame"]["x"],
+			(float)frame["frame"]["y"],
+			(float)frame["frame"]["w"],
+			(float)frame["frame"]["h"]
+		};
+		std::cout << filename << ": " << rect.x << "," << rect.y << "\n";
+		tex.push_back(rect);
 	}
-
-	font12 = LoadFontEx("resources/aller.ttf", 12, NULL, 0);
-	font24 = LoadFontEx("resources/aller.ttf", 24, NULL, 0);
-	font36 = LoadFontEx("resources/aller.ttf", 36, NULL, 0);
-
-	font12_b = LoadFontEx("resources/aller_bold.ttf", 12, NULL, 0);
-	font24_b = LoadFontEx("resources/aller_bold.ttf", 24, NULL, 0);
-	font36_b = LoadFontEx("resources/aller_bold.ttf", 36, NULL, 0);
-
-	font12_l = LoadFontEx("resources/aller_light.ttf", 12, NULL, 0);
-	font24_l = LoadFontEx("resources/aller_light.ttf", 24, NULL, 0);
-	font36_l = LoadFontEx("resources/aller_light.ttf", 36, NULL, 0);
 
 	std::vector<std::string> maps_getting_added;
 	
-	song_select_top_bar = LoadTextureCompat("resources/mode-osu-small.png");
-	background = LoadTextureCompat((db::fs_path / "resources" / "default_bg.jpg").string().c_str());
+	song_select_top_bar = LoadTexture("resources/textures/mode-osu-small.png");
+	background = LoadTextureCompat((db::fs_path / "resources" / "textures" / "default_bg.jpg").string().c_str());
 
 	music = LoadMusicStreamFromRam("resources/mus_menu.ogg");
 	
 	screen_width = (float)GetScreenWidth();
 	screen_height = (float)GetScreenHeight();
 
-	// SetTargetFPS(1000);
-	// UpdateMusicStream(music);
 	PlayMusicStream(music);
+	int ind = 0;
+
+	settings::init();
 
 	while (!WindowShouldClose())
 	{
@@ -67,14 +78,16 @@ int main()
 			game_state = MAIN_MENU;
 			db::reconstruct_db();
 		}
+
 		BeginDrawing();
 		
 		switch (game_state) {
 			case MAIN_MENU:
 				ClearBackground(DARKGRAY);
-				DrawTextEx(font36, "Welcome to cppsu!", { 32, 32 }, 36, 0, WHITE);
-				DrawTextEx(font24, "Press M to switch to the song select screen!", { 32, screen_height - 64 }, 24, 0, WHITE);
-				DrawTextEx(font24, "Press N to import maps!", { 32, screen_height - 32 }, 24, 0, WHITE);
+				
+				DrawTextExScaled(aller_r, "Welcome to cppsu!", { 32, 32 }, 36*screen_scale, 0, WHITE);
+				DrawTextExScaled(aller_r, "Press M to switch to the song select screen!", { 32, screen_height - 64 }, 24*screen_scale, 0, WHITE);
+				DrawTextExScaled(aller_r, "Press N to import maps!", { 32, screen_height - 32 }, 24*screen_scale, 0, WHITE);
 				if (IsKeyPressed(KEY_M)) {
 					song_select::init(false);
 				}
@@ -83,14 +96,17 @@ int main()
 					if (db::add_to_db(maps_getting_added)) {
 					}
 				}
+				if (IsKeyPressed(KEY_S)) {
+					game_state = SETTINGS;
+				}
 			break;
 			case IMPORTING:
 				DrawRectangleGradientH(0, 0, screen_width, screen_height, YELLOW, ORANGE);
-				DrawTextEx(font36, "Importing maps...", { 32, 32 }, 72, 0, BLACK);
-				
+				DrawTextExScaled(aller_r, "Importing maps...", { 32, 32 }, 108, 0, BLACK);
+				// todo : revamp this.
 				for (int i = 0; i < maps_getting_added.size(); i++) {
 
-					DrawTextEx(font24, maps_getting_added[i].c_str(), {32, (float)128 + i * 24}, 24, 0, BLACK);
+					DrawTextExScaled(aller_r, maps_getting_added[i].c_str(), {32, (float)128 + i * 24}, 24, 0, BLACK);
 					i++;
 				}
 				if(importing_map == false) {
@@ -101,9 +117,13 @@ int main()
 					break;
 				}
 			break;
+			case SETTINGS: 
+				settings::update();
+			break;
 			case SONG_SELECT:
+				// move all this shit to update()
+				// TODO : add right click
 				if (IsKeyPressed(KEY_B)) {
-					delete g_ingame;
 					game_state = MAIN_MENU;
 				}
 				if (IsKeyPressed(KEY_N)) {
@@ -162,9 +182,9 @@ int main()
 					current_line_length = 0;
 				}
 			}
-			DrawRectangle(766, 550, 204, 154, PURPLE);
-			DrawRectangle(768, 552, 200, 150, BLACK);
-			DrawTextEx(font36, lines.c_str(), { 772, 552 }, 18, 0, WHITE);
+			DrawRectangle(766 * screen_width_ratio, 550 * screen_height_ratio, 204 * screen_width_ratio, 154 * screen_height_ratio, PURPLE);
+			DrawRectangle(768 * screen_width_ratio, 552 * screen_height_ratio, 200 * screen_width_ratio, 150 * screen_height_ratio, BLACK);
+			DrawTextExScaled(aller_r, lines.c_str(), { 772, 552 }, 18, 0, WHITE);
 			n.time_left -= GetFrameTime();
 		}
 

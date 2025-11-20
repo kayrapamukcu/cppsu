@@ -14,7 +14,7 @@ ingame::ingame(file_struct map) {
 	hit_window_50 = (int)(200.0f - 10.0f * map_info.od);
 	approach_rate_milliseconds = (map_info.ar < 5.0f) ? int(1800 - 120 * map_info.ar) : int(1200 - 150 * (map_info.ar - 5));
 
-	circle_radius = playfield_scale * (50 - (4.0f * map_info.cs));
+	circle_radius = playfield_scale * (54.4 - (4.48f * map_info.cs));
 
 	// parse .osu file	
 	auto file = std::filesystem::current_path() / "maps" / std::to_string(map.beatmap_set_id) / map.osu_filename;
@@ -91,6 +91,7 @@ ingame::ingame(file_struct map) {
 	if (hit_color_count < 2) hit_color_count = 4;
 	timing_points.shrink_to_fit();
 	int timing_point_idx = 0;
+	uint32_t combo_idx = 0;
 	while (std::getline(infile, line)) {
 		chomp_cr(line);
 		if (line.empty()) continue;
@@ -108,6 +109,8 @@ ingame::ingame(file_struct map) {
 		to_int(parts[2], time);
 		to_int(parts[3], type);
 
+		combo_idx++;
+
 		HitObjectType hot = CIRCLE;
 		if (type & 2) hot = SLIDER;
 		else if (type & 8) hot = SPINNER;
@@ -116,6 +119,7 @@ ingame::ingame(file_struct map) {
 			if (type & 16) hit_color_current++;
 			if (type & 32) hit_color_current+=2;
 			if (type & 64) hit_color_current+=4;
+			combo_idx = 1;
 		}
 		
 		hit_color_current = hit_color_current % hit_color_count;
@@ -130,7 +134,7 @@ ingame::ingame(file_struct map) {
 			y *= playfield_scale;
 			x += playfield_offset_x;
 			y += playfield_offset_y;
-			hit_objects.push_back(HitObjectEntry{ {x, y}, time, time, circle_cnt, hit_color_current, hot });
+			hit_objects.push_back(HitObjectEntry{ {x, y}, time, time, circle_cnt, hit_color_current, hot, combo_idx});
 			circle_cnt++;
 			break;
 		}
@@ -184,14 +188,14 @@ ingame::ingame(file_struct map) {
 			}
 
 			sliders.push_back(Slider{ (uint16_t) slider_repeat, false, shape, std::move(points)});
-			hit_objects.push_back(HitObjectEntry{ {x, y}, time, end_time, slider_cnt, hit_color_current, hot });
+			hit_objects.push_back(HitObjectEntry{ {x, y}, time, end_time, slider_cnt, hit_color_current, hot, combo_idx });
 			slider_cnt++;
 			break;
 		}
 		case SPINNER: 
 			int end_time;
 			to_int(sv.substr(start), end_time);
-			hit_objects.push_back(HitObjectEntry{ {256 * playfield_scale + playfield_offset_x, 192 * playfield_scale + playfield_offset_y}, time, end_time, spinner_cnt, hit_color_current, hot });
+			hit_objects.push_back(HitObjectEntry{ {256 * playfield_scale + playfield_offset_x, 192 * playfield_scale + playfield_offset_y}, time, end_time, spinner_cnt, hit_color_current, hot, combo_idx });
 			spinner_cnt++;
 			break;  
 		default:
@@ -226,8 +230,7 @@ void ingame::check_hit() {
 	Vector2 mouse_pos = { (float)GetMouseX(), (float)GetMouseY() };
 	switch (ho.type) {
 	case CIRCLE: {
-		
-		if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius)) {
+		if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius * 0.94)) {
 			if (delta <= hit_window_300) {
 				std::cout << "300 with offset " << map_time - ho.time << "!\n";
 				hit300s++;
@@ -267,7 +270,7 @@ void ingame::check_hit() {
 		if (!s.head_hit) {
 			delta = std::abs(map_time - ho.time);
 			if (delta > 360) return;
-			if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius)) {
+			if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius * 0.94)) {
 				if (delta <= hit_window_50) {
 					std::cout << "Slider head hit! " << map_time - ho.time << "!\n";
 					combo++;
@@ -277,6 +280,8 @@ void ingame::check_hit() {
 					std::cout << "Slider head miss! with offset " << map_time - ho.time << "!\n";
 					if (max_combo < combo) max_combo = combo;
 					combo = 0;
+					// todo : s.points.back isnt always right
+					hits.push_back({ s.points.back() ,draw_hit_time, MISS});
 				}
 			}
 		}
@@ -398,7 +403,12 @@ void ingame::update() {
 		std::cout << "missed object at time " << ho.time << "\n";
 		misses++;
 		combo = 0;
-		hits.push_back({ ho.pos, draw_hit_time, MISS });
+		if(ho.type == SLIDER) {
+			auto& s = sliders[ho.idx];
+			// todo : s.points.back isnt always right
+			hits.push_back({ s.points.back(), draw_hit_time, MISS });
+		}
+		else hits.push_back({ ho.pos, draw_hit_time, MISS });
 		on_object++;
 		recalculate_acc();
 	}
@@ -413,32 +423,59 @@ void ingame::draw() {
 	ClearBackground(BLACK);
 	DrawRectangleLines(playfield_offset_x, playfield_offset_y, playfield_scale * 512, playfield_scale * 384, WHITE);
 	
+	if(skippable) {
+		DrawTexturePro(atlas, tex[28], { screen_width - 1.25f*screen_height/4, screen_height - screen_height/4, 1.25f*screen_height/4, screen_height/4 }, { 0,0 }, 0.0f, WHITE);
+	}
+
 	// --- Draw objects ---
+	for (int i = on_object; i < visible_end; i++) {
+		const auto& ho = hit_objects[i];
+		if (ho.type != SPINNER) continue;
+
+		// spinners always have an approach rate of 400ms from my testing
+		unsigned char alpha = (unsigned char)std::clamp(255.0f * ((map_time - (ho.time - 400)) / (400)), 0.0f, 255.0f);
+		float x, y;
+		x = 256 * playfield_scale + playfield_offset_x;
+		y = 192 * playfield_scale + playfield_offset_y;
+		DrawCircleV(Vector2{ x, y }, 256 * playfield_scale, { 64, 128, 255, alpha });
+		auto radius = (map_time < ho.time) ? 256 * playfield_scale : 240 * playfield_scale * (ho.end_time - map_time) / (ho.end_time - ho.time) + 16;
+		DrawCircleLinesV(Vector2{ x, y }, radius, { 255, 255, 255, alpha });
+		DrawCircleV(Vector2{ x, y }, 16, { 255, 255, 255, alpha });
+	}
+
 
 	for (int i = visible_end - 1; i >= on_object; i--) {
 		auto& ho = hit_objects[i];
 
 		unsigned char alpha = (unsigned char)std::clamp(255.0f * ((map_time - (ho.time - approach_rate_milliseconds)) / (0.666f * approach_rate_milliseconds)), 0.0f, 255.0f);
+		float approach_scale = std::max(0.0f, (ho.time - map_time)) / approach_rate_milliseconds * circle_radius * 3 + circle_radius * 0.94;
+		Color color = hit_colors[ho.color_idx];
+		color.a = alpha;
+		Color white_alpha = { 255, 255, 255, alpha };
+		Color circle_color = { color.r, color.g, color.b, alpha * 0.8f };
 		switch (ho.type) {
 		case CIRCLE: {
-			float approach_scale = std::max(0.0f, (ho.time - map_time)) / approach_rate_milliseconds * circle_radius * 3 + circle_radius;
-			Color color = hit_colors[ho.color_idx];
-			color.a = alpha;
-			DrawCircleLinesV(ho.pos, approach_scale, color);
-			DrawCircleV(ho.pos, circle_radius, color);
+
+			
+			// DrawCircleLinesV(ho.pos, approach_scale, color);
+			DrawTexturePro(atlas, tex[0], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
+			DrawTexturePro(atlas, tex[21], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, white_alpha);
+			DrawTexturePro(atlas, tex[20], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, circle_color);
+			DrawTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), { ho.pos.x - MeasureTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), circle_radius * 1.2f, 0).x / 2.0f, ho.pos.y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
+			//DrawCircleV(ho.pos, circle_radius, color);
+
 			break;
 		}
 		case SLIDER: {
 			auto& s = sliders[ho.idx];
-			float approach_scale = std::max(0.0f, (ho.time - map_time)) / approach_rate_milliseconds * circle_radius * 3 + circle_radius;
-			Color color = hit_colors[ho.color_idx];
-			color.a = alpha;
-			DrawCircleLinesV(ho.pos, approach_scale, color);
+			
+
+			DrawTexturePro(atlas, tex[0], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
 
 			Color body_color = { 80, 80, 80, 0.5f * alpha };
 			switch (s.slider_type) { // TODO: Learn math bro...
 			case 'L': {
-				DrawLineEx(ho.pos, s.points[0], circle_radius * 2, body_color);
+				DrawLineEx(ho.pos, s.points[0], circle_radius * 1.88, body_color);
 				break;
 			}
 			case 'P': {
@@ -447,7 +484,7 @@ void ingame::draw() {
 			case 'C':
 			case 'B': {
 				if (s.points.size() == 1) {
-					DrawLineEx(ho.pos, s.points[0], circle_radius * 2, body_color);
+					DrawLineEx(ho.pos, s.points[0], circle_radius * 1.88, body_color);
 					break;
 				}
 				// DrawSplineBezierQuadratic(s.points.data(), (int)s.points.size(), circle_radius*2, body_color);
@@ -456,21 +493,15 @@ void ingame::draw() {
 			default:
 				break;
 			}
-			DrawCircleV(ho.pos, circle_radius, color);
-			DrawCircleV(s.points[s.points.size() - 1], circle_radius, color);
+			DrawTexturePro(atlas, tex[21], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, white_alpha);
+			DrawTexturePro(atlas, tex[20], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, circle_color);
 
+			DrawTexturePro(atlas, tex[21], { s.points.back().x - circle_radius, s.points.back().y - circle_radius, circle_radius * 2, circle_radius * 2}, {0,0}, 0.0f, white_alpha);
+			DrawTexturePro(atlas, tex[20], { s.points.back().x - circle_radius, s.points.back().y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, circle_color);
+			DrawTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), { ho.pos.x - MeasureTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), circle_radius * 1.2f, 0).x / 2.0f, ho.pos.y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
 			break;
 		}
 		case SPINNER: {
-			// spinners always have an approach rate of 400ms from my testing
-			alpha = (unsigned char)std::clamp(255.0f * ((map_time - (ho.time - 400)) / (400)), 0.0f, 255.0f);
-			float x, y;
-			x = 256 * playfield_scale + playfield_offset_x;
-			y = 192 * playfield_scale + playfield_offset_y;
-			DrawCircleV(Vector2{ x, y }, 256 * playfield_scale, { 64, 128, 255, alpha });
-			auto radius = (map_time < ho.time) ? 256 * playfield_scale : 240 * playfield_scale * (ho.end_time - map_time) / (ho.end_time - ho.time) + 16;
-			DrawCircleLinesV(Vector2{ x, y }, radius, { 255, 255, 255, alpha });
-			DrawCircleV(Vector2{ x, y }, 16, { 255, 255, 255, alpha });
 			break;
 		}
 		}
@@ -483,16 +514,16 @@ void ingame::draw() {
 		// todo: precompute text width or use textures
 		switch (h.result) {
 		case HIT_300:
-			DrawTextEx(font24, "300", { h.pos.x - MeasureTextEx(font24, "300", 24, 0).x / 2.0f, h.pos.y }, 24, 0, BLUE);
+			DrawTextEx(aller_r, "300", { h.pos.x - MeasureTextEx(aller_r, "300", 24, 0).x / 2.0f, h.pos.y }, 24, 0, BLUE);
 			break;
 		case HIT_100:
-			DrawTextEx(font24, "100", { h.pos.x - MeasureTextEx(font24, "100", 24, 0).x / 2.0f, h.pos.y }, 24, 0, GREEN);
+			DrawTextEx(aller_r, "100", { h.pos.x - MeasureTextEx(aller_r, "100", 24, 0).x / 2.0f, h.pos.y }, 24, 0, GREEN);
 			break;
 		case HIT_50:
-			DrawTextEx(font24, "50", { h.pos.x - MeasureTextEx(font24, "50", 24, 0).x / 2.0f, h.pos.y }, 24, 0, YELLOW);
+			DrawTextEx(aller_r, "50", { h.pos.x - MeasureTextEx(aller_r, "50", 24, 0).x / 2.0f, h.pos.y }, 24, 0, YELLOW);
 			break;
 		case MISS:
-			DrawTextEx(font24, "Miss!", { h.pos.x - MeasureTextEx(font24, "Miss!", 24, 0).x / 2.0f, h.pos.y }, 24, 0, RED);
+			DrawTextEx(aller_r, "Miss!", { h.pos.x - MeasureTextEx(aller_r, "Miss!", 24, 0).x / 2.0f, h.pos.y }, 24, 0, RED);
 			break;
 		}
 

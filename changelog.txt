@@ -1,0 +1,8 @@
+a2025.1118
+
+(*) Fixed crash on trying to enter song select with an invalid db
+
+a2025.1120
+
+(+) Made song select screen scale with resolution
+(+) Added settings screen

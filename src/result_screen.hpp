@@ -1,3 +1,5 @@
+#pragma once
+
 #include "globals.hpp"
 
 class result_screen {
@@ -7,4 +9,5 @@ public:
 	void update();
 private:
 	results_struct results;
+	std::string score_str;
 };

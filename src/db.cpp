@@ -12,6 +12,8 @@
 #include "globals.hpp"
 #include "song_select.hpp"
 
+// todo : add source to db. if source exists, display it in Source (Artist) format in song select. add slider leniency to db too.
+
 void db::init() {
 	fs_path = std::filesystem::current_path();
 }
@@ -225,6 +227,7 @@ bool db::add_to_db(std::vector<std::string>& maps_getting_added) {
     if (files.empty()) return false;
     game_state = IMPORTING;
     importing_map = true;
+    // todo : instead of having a thread here, do it all in this thread, and after each map import call draw
     std::thread([files, &maps_getting_added]() {
         bool failed = false;
         for (auto& f : files) {
@@ -416,15 +419,15 @@ void db::read_db(std::vector<file_struct>& db) {
     //try {
         auto begin = std::chrono::steady_clock::now();
         std::ifstream in(fs_path / "database.db");
-        if (!in) { std::cout << "No database found, reconstructing...\n"; reconstruct_db(); }
+        if (!in) { std::cout << "No database found, reconstructing...\n"; reconstruct_db(); in = std::ifstream(fs_path / "database.db"); }
 
         std::string line;
         int to_reserve = 0;
         // Header
-        if (!std::getline(in, line)) { reconstruct_db(); } // [General]
-        if (!std::getline(in, line)) { reconstruct_db(); } // Format: x
+        if (!std::getline(in, line)) { reconstruct_db(); in = std::ifstream(fs_path / "database.db"); } // [General]
+        if (!std::getline(in, line)) { reconstruct_db(); in = std::ifstream(fs_path / "database.db"); } // Format: x
         chomp_cr(line);
-        if (!line.starts_with("Format: ")) { reconstruct_db(); }
+        if (!line.starts_with("Format: ")) { reconstruct_db(); in = std::ifstream(fs_path / "database.db"); }
         int format_version = 0;
         {
             std::string_view v = std::string_view(line).substr(8);
