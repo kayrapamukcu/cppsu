@@ -25,6 +25,7 @@ int main()
 	std::ios::sync_with_stdio(false);
 	// INIT SEQUENCE
 	db::init();	
+
 	InitWindow(screen_width, screen_height, "cppsu!");
 	InitAudioDevice();
 	SetExitKey(KEY_NULL);
@@ -36,6 +37,8 @@ int main()
 	SetTextureFilter(aller_r.texture, TEXTURE_FILTER_BILINEAR);
 	SetTextureFilter(aller_l.texture, TEXTURE_FILTER_BILINEAR);
 	SetTextureFilter(aller_b.texture, TEXTURE_FILTER_BILINEAR);
+
+	HideCursor();
 
 	std::ifstream f("resources/atlas_data.json");
 	json j = json::parse(f);
@@ -49,7 +52,7 @@ int main()
 			(float)frame["frame"]["w"],
 			(float)frame["frame"]["h"]
 		};
-		std::cout << filename << ": " << rect.x << "," << rect.y << "\n";
+		// std::cout << filename << ": " << rect.x << "," << rect.y << "\n";
 		tex.push_back(rect);
 	}
 
@@ -58,15 +61,33 @@ int main()
 	song_select_top_bar = LoadTexture("resources/textures/mode-osu-small.png");
 	background = LoadTextureCompat((db::fs_path / "resources" / "textures" / "default_bg.jpg").string().c_str());
 
+	auto welcome_sfx = LoadSound("resources/welcome.mp3");
+
 	music = LoadMusicStreamFromRam("resources/mus_menu.ogg");
 	
 	screen_width = (float)GetScreenWidth();
 	screen_height = (float)GetScreenHeight();
 
-	PlayMusicStream(music);
-	int ind = 0;
+	SetTargetFPS(360);
 
 	settings::init();
+	SetSoundPitch(welcome_sfx, 0.6f);
+	PlaySound(welcome_sfx);
+
+	// build white 1x1 image
+
+	auto renderTexture = LoadRenderTexture(1, 1);
+	BeginTextureMode(renderTexture);
+	ClearBackground(WHITE);
+	EndTextureMode();
+	
+	// 3.56s welcome sound
+
+	auto start_time = GetTime();
+	float passed_time_ratio;
+	Vector2 mousePos;
+
+	game_state = MAIN_MENU;
 
 	while (!WindowShouldClose())
 	{
@@ -80,8 +101,30 @@ int main()
 		}
 
 		BeginDrawing();
-		
+	
 		switch (game_state) {
+			case INIT:
+				ClearBackground(BLACK);
+				passed_time_ratio = (GetTime() - start_time) / 3.56;
+
+				DrawTexturePro(
+					renderTexture.texture,
+					{ 0, 0, 1.0f, 1.0f },
+					{ 0, 0, screen_width, screen_height },
+					{ 0,0 },
+					0.0f,
+					{ 255, 255, 255, (unsigned char)(255 * passed_time_ratio) }
+				);
+
+				if (start_time + 3.56 < GetTime()) {
+					game_state = MAIN_MENU;
+					PlayMusicStream(music);
+					HideCursor();
+				}
+					
+				DrawTextExScaled(aller_r, "Loading...", { screen_width / 2 - 100, screen_height / 2 - 24 }, 48 * screen_scale, 0, WHITE);
+				goto end_draw;
+			break;
 			case MAIN_MENU:
 				ClearBackground(DARKGRAY);
 				
@@ -188,6 +231,10 @@ int main()
 			n.time_left -= GetFrameTime();
 		}
 
+		mousePos = GetMousePosition();
+		DrawTexturePro(atlas, tex[1], { mousePos.x - tex[1].width * mouse_scale / 2, mousePos.y - tex[1].height * mouse_scale / 2, tex[1].width * mouse_scale, tex[1].height * mouse_scale}, { 0,0 }, 0.0f, WHITE); // draw cursor
+
+		end_draw:
 		EndDrawing();
 	}
 	CloseWindow();

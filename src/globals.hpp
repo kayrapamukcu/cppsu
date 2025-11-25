@@ -25,6 +25,7 @@ enum ranks {
 };
 
 enum GAME_STATES {
+	INIT,
 	MAIN_MENU,
 	SETTINGS,
 	IMPORTING,
@@ -97,7 +98,7 @@ struct Notice {
 // Global variables
 
 inline constexpr int DB_VERSION = 7;
-inline constexpr std::string_view CLIENT_VERSION = "a2025.1120";
+inline constexpr std::string_view CLIENT_VERSION = "a2025.1125";
 
 inline float screen_width = 1024;
 inline float screen_height = 768;
@@ -108,7 +109,7 @@ inline float screen_height_ratio = screen_height / 768.0f;
 inline float screen_scale = std::min(screen_width_ratio, screen_height_ratio);
 
 inline bool isNPOTSupported = false;
-inline GAME_STATES game_state = MAIN_MENU;
+inline GAME_STATES game_state = INIT;
 inline bool importing_map = false;
 
 inline Music music;
@@ -126,6 +127,17 @@ inline Font aller_r;
 inline Font aller_l;
 inline Font aller_b;
 
+class ingame;
+inline ingame* g_ingame = nullptr;
+class result_screen;
+inline result_screen* g_result_screen = nullptr;
+
+inline std::vector<Notice> notices;
+
+// Settings variables
+
+inline float mouse_scale = 1.0f;
+
 inline KeyboardKey k_1 = KEY_C;
 inline KeyboardKey k_2 = KEY_V;
 
@@ -134,12 +146,7 @@ inline bool k2_down = false;
 
 inline std::string player_name = "Player";
 
-class ingame;
-inline ingame* g_ingame = nullptr;
-class result_screen;
-inline result_screen* g_result_screen = nullptr;
 
-inline std::vector<Notice> notices;
 
 // Helper functions
 
@@ -185,6 +192,18 @@ static inline void DrawTextureCompatPro(const TexWithSrc& t, Rectangle dst, Colo
 
 static inline void DrawTextureCompat(const TexWithSrc& t, Vector2 pos, Color tint) {
 	DrawTexturePro(t.tex, t.src, { pos.x, pos.y, t.src.width, t.src.height }, { 0,0 }, 0.0f, tint);
+}
+
+static inline float ShiftAngleForward(float angle) {
+	while (angle < 0.0f) angle += 360.0f;
+	while (angle >= 360.0f) angle -= 360.0f;
+	return angle;
+}
+
+static inline float ShiftRadiansForward(float angle, float ref) {
+	while (angle < ref) angle += 2.0f * PI;
+	while (angle >= ref + 2 * PI) angle -= 2.0f * PI;
+	return angle;
 }
 
 inline std::vector<unsigned char> g_musicData;

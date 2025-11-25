@@ -5,6 +5,7 @@
 #include <rlgl.h>
 #include "result_screen.hpp"
 #include "globals.hpp"
+#include "rlgl.h"
 
 ingame::ingame(file_struct map) {
 	// TODO : IMPLEMENT STACK LENIENCY
@@ -20,29 +21,29 @@ ingame::ingame(file_struct map) {
 	auto file = std::filesystem::current_path() / "maps" / std::to_string(map.beatmap_set_id) / map.osu_filename;
 	std::string line;
 	std::ifstream infile(file);
-	if(!infile.is_open()) {
+	if (!infile.is_open()) {
 		std::cout << "Failed to open map file: " << file << "\n";
 		return;
 	}
 	std::cout << "Opening: " << file.string() << "\n";
 	int state = 0; // 0 = before timing points, 1 = timing points, 2 = colours
-    float current_bpm = 0;
+	float current_bpm = 0;
 	float slider_mult = 0;
 
 	uint16_t circle_cnt = 0;
 	uint16_t slider_cnt = 0;
 	uint16_t spinner_cnt = 0;
 
-    while (std::getline(infile, line)) {
-        chomp_cr(line);
+	while (std::getline(infile, line)) {
+		chomp_cr(line);
 		if (line == "[HitObjects]") {
 			break;
 		}
-        if (state < 1) {
-            if (line == "[TimingPoints]") state = 1;
-            continue;
-        }
-        else if (state == 1) {
+		if (state < 1) {
+			if (line == "[TimingPoints]") state = 1;
+			continue;
+		}
+		else if (state == 1) {
 			if (line.empty()) continue;
 			if (line == "[Colours]") {
 				state = 2;
@@ -58,13 +59,12 @@ ingame::ingame(file_struct map) {
 				parts[index++] = sv.substr(start, pos - start);
 				start = pos + 1;
 			}
-
-			// parts[5] = sv.substr(start, pos - start);
-
+			static float ms_beat = 500.0f;
 			float ms;
 			to_float(parts[1], ms);
 			if (ms > 0) { // uninherited timing point
 				current_bpm = 60000.0f / ms;
+				ms_beat = ms;
 				slider_mult = map_info.slider_multiplier * 1.0f;
 			}
 			else { // inherited timing point
@@ -73,21 +73,23 @@ ingame::ingame(file_struct map) {
 
 			int volume;
 			to_int(parts[5], volume);
-			timing_points.push_back(TimingPoints{ std::stoi(std::string(parts[0])), slider_mult, (uint8_t)volume });
-        }
-        else if (state == 2){
-            if (line.starts_with("Combo")) {
+			int offset;
+			to_int(parts[0], offset);
+			timing_points.push_back(TimingPoints{ offset, slider_mult, ms_beat, volume });
+		}
+		else if (state == 2) {
+			if (line.starts_with("Combo")) {
 				size_t idx = line.find(":");
 				size_t first_comma = line.find(",", idx);
 				size_t second_comma = line.find(",", first_comma + 1);
 				int color_idx = std::stoi(line.substr(5, 1), nullptr);
 				hit_colors[color_idx - 1] = Color{ (unsigned char)std::stoi(line.substr(idx + 2, first_comma - (idx + 2))),(unsigned char)std::stoi(line.substr(first_comma + 1, second_comma - (first_comma + 1))),(unsigned char)std::stoi(line.substr(second_comma + 1)),255 };
 				hit_color_count++;
-            }
-        }
+			}
+		}
 
-        
-    }
+
+	}
 	if (hit_color_count < 2) hit_color_count = 4;
 	timing_points.shrink_to_fit();
 	int timing_point_idx = 0;
@@ -117,16 +119,15 @@ ingame::ingame(file_struct map) {
 		if (type & 4) {
 			hit_color_current++;
 			if (type & 16) hit_color_current++;
-			if (type & 32) hit_color_current+=2;
-			if (type & 64) hit_color_current+=4;
+			if (type & 32) hit_color_current += 2;
+			if (type & 64) hit_color_current += 4;
 			combo_idx = 1;
 		}
-		
+
 		hit_color_current = hit_color_current % hit_color_count;
 
 		switch (hot) {
 		case CIRCLE: {
-
 			float x, y;
 			to_float(parts[0], x);
 			to_float(parts[1], y);
@@ -134,7 +135,7 @@ ingame::ingame(file_struct map) {
 			y *= playfield_scale;
 			x += playfield_offset_x;
 			y += playfield_offset_y;
-			hit_objects.push_back(HitObjectEntry{ {x, y}, time, time, circle_cnt, hit_color_current, hot, combo_idx});
+			hit_objects.push_back(HitObjectEntry{ {x, y}, time, time, circle_cnt, hit_color_current, hot, combo_idx });
 			circle_cnt++;
 			break;
 		}
@@ -155,7 +156,7 @@ ingame::ingame(file_struct map) {
 			int slider_repeat, slider_length;
 			to_int(slider_parts[1], slider_repeat);
 			to_int(slider_parts[2], slider_length);
-			end_time = time + (int)(slider_repeat * slider_length * timing_points[timing_point_idx].slider_velocity);
+			end_time = time + (int)(slider_repeat * slider_length * timing_points[timing_point_idx].ms_beat / (100 * timing_points[timing_point_idx].slider_velocity)); // TODO : is this correct?
 			float x, y;
 			to_float(parts[0], x);
 			to_float(parts[1], y);
@@ -168,7 +169,7 @@ ingame::ingame(file_struct map) {
 			unsigned char shape = slider_line[0];
 			std::vector<Vector2> points;
 			slider_line.remove_prefix(2);
-
+			
 			while (!slider_line.empty()) {
 				size_t delim = slider_line.find('|');
 				std::string_view pair = slider_line.substr(0, delim);
@@ -187,23 +188,192 @@ ingame::ingame(file_struct map) {
 				slider_line.remove_prefix(delim + 1);
 			}
 
-			sliders.push_back(Slider{ (uint16_t) slider_repeat, false, shape, std::move(points)});
+			// CALCULATE SLIDER PATH!
+
+			std::vector<Vector3> path;
+			std::vector<Vector3> corners;
+
+			switch (shape) {
+			case 'L': {
+				// linear slider
+				auto angle = atan2f(points.back().y - y, points.back().x - x);
+				auto x_mult = cosf(angle) * playfield_scale;
+				auto y_mult = sinf(angle) * playfield_scale;
+				path.push_back({ x + x_mult * slider_length, y + y_mult * slider_length, 90 + angle * 180.f / PI });
+				break;
+			}
+			case 'P': {
+				// perfect curve (circle arc) slider
+				Vector2 p0 = { x, y };
+				Vector2 p1 = points.at(0);
+				Vector2 p2 = points.at(1);
+
+				Vector2 center;
+				float radius;
+
+				float x1 = p0.x, y1 = p0.y;
+				float x2 = p1.x, y2 = p1.y;
+				float x3 = p2.x, y3 = p2.y;
+
+				float a = p0.x * (y2 - y3) - p0.y * (p1.x - p2.x) + p1.x * y3 - p2.x * y2;
+
+				float x1_sq = p0.x * p0.x + p0.y * p0.y;
+				float x2_sq = p1.x * p1.x + p1.y * p1.y;
+				float x3_sq = p2.x * p2.x + p2.y * p2.y;
+
+				float bx = (x1_sq * (p1.y - p2.y) + x2_sq * (p2.y - p0.y) + x3_sq * (p0.y - p1.y));
+
+				float by = (x1_sq * (p2.x - p1.x) + x2_sq * (p0.x - p2.x) + x3_sq * (p1.x - p0.x));
+
+				float denom = 2.0f * a;
+
+				center.x = bx / denom;
+				center.y = by / denom;
+
+				radius = std::sqrt((center.x - x1) * (center.x - x1) + (center.y - y1) * (center.y - y1));
+
+				float start = std::atan2f(p0.y - center.y, p0.x - center.x);
+				float mid = ShiftRadiansForward(std::atan2f(p1.y - center.y, p1.x - center.x), start);
+				float end = ShiftRadiansForward(std::atan2f(p2.y - center.y, p2.x - center.x), start);
+
+				if (!(mid > start && mid < end)) {
+					std::swap(start, end);
+				}
+
+				float angleEnd = ShiftRadiansForward(end, start);
+				float arcAngle = angleEnd - start;
+
+				float arcLen = radius * arcAngle;
+				int steps = std::max(2, (int)std::ceil(arcLen / slider_resolution));
+
+				for (int i = 0; i <= steps; ++i) {
+					float t = (float)i / (float)steps;
+					float ang = start + t * arcAngle;
+					Vector3 p;
+					p.x = center.x + std::cosf(ang) * radius;
+					p.y = center.y + std::sinf(ang) * radius;
+					p.z = 180.0f * ang / PI;
+					path.push_back(p);
+				}
+
+				float dx0 = path.at(0).x - p0.x;
+				float dy0 = path.at(0).y - p0.y;
+				float dist_from_start = dx0 * dx0 + dy0 * dy0;
+				float dx1 = path.back().x - p0.x;
+				float dy1 = path.back().y - p0.y;
+				float dist_from_end = dx1 * dx1 + dy1 * dy1;
+				// If the end of the arc is closer to p0 than the beginning, reverse the list
+				if (dist_from_end < dist_from_start) {
+					std::reverse(path.begin(), path.end());
+				}
+
+				break;
+			}
+			case 'C':
+			case 'B': {
+				auto bezier_point = [](const std::vector<Vector2>& controlPoints, float t) -> Vector2 { // get bezier point at t
+					std::vector<Vector2> tmp = controlPoints;
+					int n = tmp.size();
+					for (int k = n - 1; k > 0; k--) {
+						for (int i = 0; i < k; i++) {
+							tmp[i].x = tmp[i].x + (tmp[i + 1].x - tmp[i].x) * t;
+							tmp[i].y = tmp[i].y + (tmp[i + 1].y - tmp[i].y) * t;
+						}
+					}
+					return tmp[0];
+				};
+
+				// split into segments at corners
+				std::vector<Vector2> pts2;
+				pts2.push_back({ x, y });
+				pts2.insert(pts2.end(), points.begin(), points.end());
+				
+				std::vector<std::vector<Vector2>> segments;
+				std::vector<Vector2> current;
+				int total = 0;
+				current.push_back(pts2[0]);
+				
+				for (size_t i = 1; i < pts2.size(); i++) {
+					if (pts2[i].x == pts2[i - 1].x && pts2[i].y == pts2[i - 1].y) {
+						total++;
+						corners.push_back({ pts2[i].x, pts2[i].y, (float)total });
+
+						segments.push_back(current);
+						current.clear();
+					}
+					current.push_back(pts2[i]);
+				}
+
+				if (!current.empty())
+					segments.push_back(current);
+
+				// get points along segments
+				bool firstSegment = true;
+				int cornerIndex = 0;
+
+				for (auto& seg : segments) {
+					const int approxSteps = 32;
+					float length = 0.0f;
+					float totalIndex = 0.0f;
+					Vector2 prev = seg[0];
+
+					for (int i = 1; i <= approxSteps; ++i) {
+						float t = (float)i / (float)approxSteps;
+						Vector2 p = bezier_point(seg, t);
+						float dx = p.x - prev.x;
+						float dy = p.y - prev.y;
+						length += std::sqrt(dx * dx + dy * dy);
+						prev = p;
+					}
+
+					int steps = std::max(2, (int)std::ceil(length / slider_resolution));
+
+					int iStart = firstSegment ? 0 : 1;
+
+					float angDeg = 0.0f;
+					for (int i = iStart; i <= steps; ++i) {
+						float t = (float)i / (float)steps;
+						Vector2 p = bezier_point(seg, t);
+
+						angDeg = 0.0f;
+						if (!path.empty()) {
+							const auto& prevP = path.back();
+							float dx = p.x - prevP.x;
+							float dy = p.y - prevP.y;
+							angDeg = 90 + std::atan2f(dy, dx) * 180.0f / PI;
+						}
+						totalIndex++;
+						path.push_back({ p.x, p.y, angDeg });
+					}
+
+					if (cornerIndex < corners.size() && seg.back().x == corners[cornerIndex].x && seg.back().y == corners[cornerIndex].y) {
+						corners[cornerIndex].z = totalIndex;
+						cornerIndex++;
+					}
+
+					firstSegment = false;
+				}
+				break;
+			}
+			}
+
+			sliders.push_back(Slider{ (uint16_t)slider_repeat, false, shape, slider_length * playfield_scale, std::move(path), std::move(corners), slider_repeat, {x, y} });
 			hit_objects.push_back(HitObjectEntry{ {x, y}, time, end_time, slider_cnt, hit_color_current, hot, combo_idx });
 			slider_cnt++;
 			break;
 		}
-		case SPINNER: 
+		case SPINNER:
 			int end_time;
 			to_int(sv.substr(start), end_time);
 			hit_objects.push_back(HitObjectEntry{ {256 * playfield_scale + playfield_offset_x, 192 * playfield_scale + playfield_offset_y}, time, end_time, spinner_cnt, hit_color_current, hot, combo_idx });
 			spinner_cnt++;
-			break;  
+			break;
 		default:
 			break;
 		}
 	}
 	map_begin_time = -GetTime() * 1000.0f * map_speed - 1000.0f;
-	
+
 	hit_objects.shrink_to_fit();
 	sliders.shrink_to_fit();
 
@@ -227,7 +397,6 @@ void ingame::check_hit() {
 	float delta = std::abs(map_time - ho.time);
 	if (delta > 360) return; // way too early
 
-	Vector2 mouse_pos = { (float)GetMouseX(), (float)GetMouseY() };
 	switch (ho.type) {
 	case CIRCLE: {
 		if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius * 0.94)) {
@@ -236,7 +405,7 @@ void ingame::check_hit() {
 				hit300s++;
 				combo++;
 				if (max_combo < combo) max_combo = combo;
-				hits.push_back({ ho.pos, draw_hit_time, HIT_300});
+				hits.push_back({ ho.pos, draw_hit_time, HIT_300 });
 			}
 			else if (delta <= hit_window_100) {
 				std::cout << "100 with offset " << map_time - ho.time << "!\n";
@@ -280,19 +449,18 @@ void ingame::check_hit() {
 					std::cout << "Slider head miss! with offset " << map_time - ho.time << "!\n";
 					if (max_combo < combo) max_combo = combo;
 					combo = 0;
-					// todo : s.points.back isnt always right
-					hits.push_back({ s.points.back() ,draw_hit_time, MISS});
+					hits.push_back({ {s.path.back().x, s.path.back().y}, draw_hit_time, MISS });
 				}
 			}
 		}
 		break;
-		}
+	}
 	}
 }
 
 void ingame::update() {
 	map_time = map_begin_time + GetTime() * 1000.0f * map_speed;
-
+	mouse_pos = { (float)GetMouseX(), (float)GetMouseY() };
 	if (on_object >= (int)hit_objects.size()) { // Check for end of map
 		accumulated_end_time += GetFrameTime();
 
@@ -347,21 +515,21 @@ void ingame::update() {
 		if (map_time >= 0.0f) {
 			map_time = 0.0f;
 			PlayMusicStream(music);
-			if(map_speed != 1.0f) {
+			if (map_speed != 1.0f) {
 				SetMusicPitch(music, map_speed);
 			}
 			song_init = 1;
 			if (map_first_object_time - 3000.0f > map_time)
 				skippable = true;
 			else song_init = 2;
-		}	
+		}
 		break;
 	case 1: // song started playing, but map not yet begun
 		if (map_time >= map_first_object_time - 2500.0f) {
 			skippable = false;
 			song_init = 2;
 		}
-		if (skippable && IsKeyPressed(KEY_SPACE)) {
+		if (skippable && (IsKeyPressed(KEY_SPACE) || (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(mouse_pos, { 4*screen_width/5, 4*screen_height/5, screen_width/5, screen_height/5 })))) {
 			std::cout << "skipping\n";
 			float skip_target_time = map_first_object_time - 2500.0f;
 
@@ -389,30 +557,88 @@ void ingame::update() {
 		if (IsKeyReleased(k_2)) {
 			k2_down = false;
 		}
+		HitObjectEntry ho;
+		if (on_object < (int)hit_objects.size()) ho = hit_objects[on_object];
+		else break;
 
+		switch (ho.type) {
+		case CIRCLE: {
+			// check for disappearance
+
+			while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time - hit_window_50 * 0.5f) {
+				std::cout << "Missed Circle at time " << ho.time << "\n";
+				misses++;
+				combo = 0;
+				hits.push_back({ ho.pos, draw_hit_time, MISS });
+				on_object++;
+				recalculate_acc();
+			}
+
+			break;
+		}
+		case SLIDER: {
+			auto& s = sliders[ho.idx];
+			// check for disappearance
+			while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time) {
+				std::cout << "Missed Slider at time " << ho.time << "\n";
+				misses++;
+				combo = 0;
+				hits.push_back({ { s.path.back().x, s.path.back().y }, draw_hit_time, MISS });
+				on_object++;
+				recalculate_acc();
+			}
+			
+			float path_tick_time = ((float)(ho.end_time - ho.time) / (float)s.repeat_count) / s.path.size();
+
+			int total_length = ho.end_time - ho.time;
+			int progress = std::max(std::min((ho.end_time - (int)map_time), ho.end_time - ho.time), 0);
+
+			float progress_norm = (float)progress / (float)total_length;
+			float progress_each_tick = 1.0f / s.path.size();
+			float on_tick = (1.0f - progress_norm) / progress_each_tick;
+
+			float remainder = on_tick - (int)on_tick;
+
+			if (s.path.size() == 1) { // linear sliders
+				float interp_x = (1.0f - remainder) * ho.pos.x + remainder * s.path[0].x;
+				float interp_y = (1.0f - remainder) * ho.pos.y + remainder * s.path[0].y;
+				s.slider_ball_pos = { interp_x, interp_y };
+				break;
+			}
+			on_tick = std::min(on_tick, (float)s.path.size() - 1);
+			float interp_x = (1.0f - remainder) * s.path[(int)on_tick].x + remainder * s.path[std::min((int)on_tick + 1, (int)s.path.size() - 1)].x;
+			float interp_y = (1.0f - remainder) * s.path[(int)on_tick].y + remainder * s.path[std::min((int)on_tick + 1, (int)s.path.size() - 1)].y;
+
+			s.slider_ball_pos = { interp_x, interp_y };
+			break;
+			}		
+			
+		case SPINNER: {
+			// check for disappearance
+			while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time) {
+				std::cout << "Missed Spinner at time " << ho.time << "\n";
+				misses++;
+				combo = 0;
+				hits.push_back({ ho.pos, draw_hit_time, MISS });
+				on_object++;
+				recalculate_acc();
+			}
+
+			break;
+		}
+		
+		}
+
+		
 		if (k1_down || k2_down) {
 			// implement slider & spinner behavior
+			
+			
 		}
 
 		break;
 	}
-
-	while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time - hit_window_50 * 0.5f) {
-		// missed object
-		auto& ho = hit_objects[on_object];
-		std::cout << "missed object at time " << ho.time << "\n";
-		misses++;
-		combo = 0;
-		if(ho.type == SLIDER) {
-			auto& s = sliders[ho.idx];
-			// todo : s.points.back isnt always right
-			hits.push_back({ s.points.back(), draw_hit_time, MISS });
-		}
-		else hits.push_back({ ho.pos, draw_hit_time, MISS });
-		on_object++;
-		recalculate_acc();
-	}
-
+	
 	while (visible_end < (int)hit_objects.size() && hit_objects[visible_end].time - approach_rate_milliseconds <= map_time) {
 		visible_end++;
 	}
@@ -422,9 +648,9 @@ void ingame::update() {
 void ingame::draw() {
 	ClearBackground(BLACK);
 	DrawRectangleLines(playfield_offset_x, playfield_offset_y, playfield_scale * 512, playfield_scale * 384, WHITE);
-	
-	if(skippable) {
-		DrawTexturePro(atlas, tex[28], { screen_width - 1.25f*screen_height/4, screen_height - screen_height/4, 1.25f*screen_height/4, screen_height/4 }, { 0,0 }, 0.0f, WHITE);
+
+	if (skippable) {
+		DrawTexturePro(atlas, tex[28], { screen_width - 1.25f * screen_height / 4, screen_height - screen_height / 4, 1.25f * screen_height / 4, screen_height / 4 }, { 0,0 }, 0.0f, WHITE);
 	}
 
 	// --- Draw objects ---
@@ -455,50 +681,97 @@ void ingame::draw() {
 		Color circle_color = { color.r, color.g, color.b, alpha * 0.8f };
 		switch (ho.type) {
 		case CIRCLE: {
-
-			
-			// DrawCircleLinesV(ho.pos, approach_scale, color);
 			DrawTexturePro(atlas, tex[0], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
 			DrawTexturePro(atlas, tex[21], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, white_alpha);
 			DrawTexturePro(atlas, tex[20], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, circle_color);
 			DrawTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), { ho.pos.x - MeasureTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), circle_radius * 1.2f, 0).x / 2.0f, ho.pos.y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
-			//DrawCircleV(ho.pos, circle_radius, color);
-
 			break;
 		}
 		case SLIDER: {
 			auto& s = sliders[ho.idx];
-			
 
 			DrawTexturePro(atlas, tex[0], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
 
 			Color body_color = { 80, 80, 80, 0.5f * alpha };
-			switch (s.slider_type) { // TODO: Learn math bro...
+			switch (s.slider_type) {
 			case 'L': {
-				DrawLineEx(ho.pos, s.points[0], circle_radius * 1.88, body_color);
+				Rectangle dest = { (ho.pos.x + s.path[0].x) / 2, (ho.pos.y + s.path[0].y) / 2, circle_radius * 1.84f, s.length };
+				Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
+
+				DrawTexturePro(atlas, tex[61], dest, origin, s.path[0].z, white_alpha);
 				break;
 			}
 			case 'P': {
+				for (size_t i = 1; i < s.path.size(); ++i) {
+					Rectangle dest = { s.path[i - 1].x, s.path[i - 1].y, circle_radius * 1.84f, 10 };
+					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
+					DrawTexturePro(atlas, tex[61], dest, origin, s.path[i - 1].z, white_alpha);
+				}
+
 				break;
 			}
 			case 'C':
 			case 'B': {
-				if (s.points.size() == 1) {
-					DrawLineEx(ho.pos, s.points[0], circle_radius * 1.88, body_color);
-					break;
+				int indexToCheck = 0;
+				for (int i = 0; i < s.corners.size(); i++) {
+
+					indexToCheck += s.corners[i].z;
+
+					float ang1 = ShiftAngleForward(s.path[indexToCheck].z);
+					float ang2 = ShiftAngleForward(s.path[indexToCheck - 1].z);
+
+					float inter_x = (s.path[indexToCheck].x + s.path[indexToCheck - 1].x) / 2.f;
+					float inter_y = (s.path[indexToCheck].y + s.path[indexToCheck - 1].y) / 2.f;
+
+					if(ang2 < ang1) {
+						std::swap(ang1, ang2);
+					}
+					// TODO : improve unnecessary renders
+					for (float j = ang1; j < ang2; j += 5) {
+						Rectangle dest = { inter_x, inter_y, circle_radius * 1.84f, 10 };
+						Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
+
+						DrawTexturePro(atlas, tex[61], dest, origin, j, white_alpha);
+					}
 				}
-				// DrawSplineBezierQuadratic(s.points.data(), (int)s.points.size(), circle_radius*2, body_color);
+				for (size_t i = 1; i < s.path.size(); ++i) {
+					Rectangle dest = {s.path[i - 1].x, s.path[i - 1].y, circle_radius * 1.84f, 10 };
+					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
+					DrawTexturePro(atlas, tex[61], dest, origin, s.path[i - 1].z, white_alpha);
+				}
+
 				break;
 			}
 			default:
 				break;
 			}
+
+			if (ho.time < map_time)
+			DrawCircle(s.slider_ball_pos.x, s.slider_ball_pos.y, circle_radius * 0.92f, YELLOW);
+
 			DrawTexturePro(atlas, tex[21], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, white_alpha);
 			DrawTexturePro(atlas, tex[20], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, circle_color);
 
-			DrawTexturePro(atlas, tex[21], { s.points.back().x - circle_radius, s.points.back().y - circle_radius, circle_radius * 2, circle_radius * 2}, {0,0}, 0.0f, white_alpha);
-			DrawTexturePro(atlas, tex[20], { s.points.back().x - circle_radius, s.points.back().y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, circle_color);
+			DrawTexturePro(atlas, tex[21], { s.path.back().x - circle_radius, s.path.back().y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, white_alpha);
+			DrawTexturePro(atlas, tex[20], { s.path.back().x - circle_radius, s.path.back().y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, circle_color);
 			DrawTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), { ho.pos.x - MeasureTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), circle_radius * 1.2f, 0).x / 2.0f, ho.pos.y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
+
+			
+
+			if (s.repeat_left > 1) {
+				if (s.repeat_left > 2) { // both ends
+					DrawTextEx(aller_r, "R", { s.path[0].x - MeasureTextEx(aller_r, "r", circle_radius * 1.2f, 0).x / 2.0f, s.path[0].y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
+					DrawTextEx(aller_r, "R", { s.path.back().x - MeasureTextEx(aller_r, "r", circle_radius * 1.2f, 0).x / 2.0f, s.path.back().y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
+				}
+				else {
+					if (s.repeat_left % 2 == 1) {
+						DrawTextEx(aller_r, "R", { s.path.back().x - MeasureTextEx(aller_r, "r", circle_radius * 1.2f, 0).x / 2.0f, s.path.back().y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
+					}
+					else {
+						DrawTextEx(aller_r, "R", { s.path[0].x - MeasureTextEx(aller_r, "r", circle_radius * 1.2f, 0).x / 2.0f, s.path[0].y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
+					}
+				}
+			}
 			break;
 		}
 		case SPINNER: {

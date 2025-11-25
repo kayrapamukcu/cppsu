@@ -28,8 +28,11 @@ struct Slider {
 	uint16_t repeat_count;
 	bool head_hit;
 	unsigned char slider_type; // 0 = linear, 1 = bezier, 2 = perfect
-	std::vector<Vector2> points;
-	std::vector<Vector2> path;
+	float length;
+	std::vector<Vector3> path;
+	std::vector<Vector3> corners;
+	int repeat_left;
+	Vector2 slider_ball_pos;
 };
 
 struct HitObjectEntry {
@@ -45,7 +48,8 @@ struct HitObjectEntry {
 struct TimingPoints {
 	int time;
 	float slider_velocity;
-	uint8_t volume;
+	float ms_beat;
+	int volume;
 };
 
 class ingame {
@@ -57,8 +61,8 @@ public:
 	inline void recalculate_acc();
 private:
 	static constexpr float draw_hit_time = 0.4f;
-	const float map_speed = 0.9f;
-
+	float map_speed = 1.0f;
+	Vector2 mouse_pos = { 0, 0 };
 	file_struct map_info;
 	float map_time = -1000.0f;
 	float map_begin_time = -1000.0f;
@@ -67,7 +71,7 @@ private:
 	int visible_end = 0;
 
 	float circle_radius = 200.0f;
-
+	float slider_resolution = 6.0f;
 	float accuracy = 100.0f;
 	uint32_t score = 0;
 	uint32_t combo = 0;
@@ -83,12 +87,12 @@ private:
 		Color{ 0, 0, 0, 255 },
 		Color{ 0, 0, 0, 255 }
 	};
-	
+
 	int approach_rate_milliseconds = 450;
 	int hit_window_300 = 200;
 	int hit_window_100 = 200;
 	int hit_window_50 = 200;
-	
+
 	uint32_t song_init = 0;
 	uint8_t hit_color_count = 0;
 	uint8_t hit_color_current = 0;

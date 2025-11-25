@@ -9,10 +9,9 @@
 class db {
 public:
 	static void init();
-	static inline std::vector<std::string> get_directories(const std::filesystem::path& p)
-	{
+	static inline std::vector<std::string> get_directories(const std::filesystem::path& p) {
 		std::vector<std::string> r;
-		for (auto& p : std::filesystem::recursive_directory_iterator(p))
+		for (auto& p : std::filesystem::directory_iterator(p))
 			if (p.is_directory())
 				r.push_back(p.path().filename().string());
 		return r;
@@ -20,7 +19,10 @@ public:
 
 	static inline std::vector<std::string> get_files(const std::filesystem::path& p) {
 		std::vector<std::string> r;
+		
 		for (auto& e : std::filesystem::directory_iterator(p)) {
+			if (!e.is_regular_file())
+				continue;
 			if (e.path().extension() == ".osu") {
 				std::filesystem::path relative_path = e.path().filename();
 				r.push_back(relative_path.generic_string());

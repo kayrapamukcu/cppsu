@@ -4,5 +4,27 @@ a2025.1118
 
 a2025.1120
 
+(*) Fixed slider endpoint positions
 (+) Made song select screen scale with resolution
 (+) Added settings screen
+(~) Slider rendering progress
+
+a2025.1121
+
+(~) Slider rendering progress
+
+a2025.1123
+
+(+) Custom cursor drawing
+(+) Added a basic init screen
+
+a2025.1124
+
+(+) Slider rendering done
+(*) Fixed crash on result screen for old computers
+
+a2025.1125
+
+(~) Slider rendering fixes & logic progress
+(*) Fixed slider end times
+(*) Fixed a database crash

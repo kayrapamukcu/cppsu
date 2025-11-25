@@ -81,7 +81,6 @@ std::vector<std::string> db::open_osz_dialog() {
 }
 
 bool db::extract_osz_to(const std::string& osz_path_w, const std::filesystem::path& dest) {
-    // Miniz takes UTF-8 path. Convert:
     std::string osz_path_utf8(osz_path_w.begin(), osz_path_w.end());
 
     mz_zip_archive zip{};
@@ -191,7 +190,6 @@ bool db::append_set_to_db(int set_id) {
             << '\t' << head.title
             << '\t' << head.artist << '\n';
     
-    // Append [MAP] lines
     for (const auto& fn : files) {
         file_struct m = read_file_metadata(set_path / fn);
         
@@ -416,101 +414,96 @@ void db::get_last_assigned_id() {
 
 void db::read_db(std::vector<file_struct>& db) {
     db.clear();
-    //try {
-        auto begin = std::chrono::steady_clock::now();
-        std::ifstream in(fs_path / "database.db");
-        if (!in) { std::cout << "No database found, reconstructing...\n"; reconstruct_db(); in = std::ifstream(fs_path / "database.db"); }
+    auto begin = std::chrono::steady_clock::now();
+    std::ifstream in(fs_path / "database.db");
+    if (!in) { std::cout << "No database found, reconstructing...\n"; reconstruct_db(); in = std::ifstream(fs_path / "database.db"); }
 
-        std::string line;
-        int to_reserve = 0;
-        // Header
-        if (!std::getline(in, line)) { reconstruct_db(); in = std::ifstream(fs_path / "database.db"); } // [General]
-        if (!std::getline(in, line)) { reconstruct_db(); in = std::ifstream(fs_path / "database.db"); } // Format: x
+    std::string line;
+    int to_reserve = 0;
+    // Header
+    if (!std::getline(in, line)) { reconstruct_db(); in = std::ifstream(fs_path / "database.db"); } // [General]
+    if (!std::getline(in, line)) { reconstruct_db(); in = std::ifstream(fs_path / "database.db"); } // Format: x
+    chomp_cr(line);
+    if (!line.starts_with("Format: ")) { reconstruct_db(); in = std::ifstream(fs_path / "database.db"); }
+    int format_version = 0;
+    {
+        std::string_view v = std::string_view(line).substr(8);
+        to_int(v, format_version);
+        if (format_version != DB_VERSION) { std::cout << "Database format not supported, reconstructing...\n"; reconstruct_db();}
+    }
+
+    std::getline(in, line);
+    if(line.starts_with("LastID:")) {
+        std::string_view v = std::string_view(line).substr(7);
+        to_int(v, last_assigned_id);
+	}
+    std::string cur_title, cur_artist;
+    int beatmap_set_id = 0;
+
+    while (std::getline(in, line)) {
         chomp_cr(line);
-        if (!line.starts_with("Format: ")) { reconstruct_db(); in = std::ifstream(fs_path / "database.db"); }
-        int format_version = 0;
-        {
-            std::string_view v = std::string_view(line).substr(8);
-            to_int(v, format_version);
-            if (format_version != DB_VERSION) { std::cout << "Database format not supported, reconstructing...\n"; reconstruct_db(); return; }
+        std::string_view s = line;
+        if (s.starts_with("[SET]")) {
+            size_t a = s.find('\t');
+            size_t b = s.find('\t', a + 1);
+            size_t c = s.find('\t', b + 1);
+
+            to_int(s.substr(a + 1, b - (a + 1)), beatmap_set_id);
+            cur_title = std::string(s.substr(b + 1, c - (b + 1)));
+            cur_artist = std::string(s.substr(c + 1));
+            continue;
         }
 
-        std::getline(in, line);
-        if(line.starts_with("LastID:")) {
-            std::string_view v = std::string_view(line).substr(7);
-            to_int(v, last_assigned_id);
-		}
-        std::string cur_title, cur_artist;
-        int beatmap_set_id = 0;
-
-        while (std::getline(in, line)) {
-            chomp_cr(line);
-            std::string_view s = line;
-            if (s.starts_with("[SET]")) {
-                size_t a = s.find('\t');
-                size_t b = s.find('\t', a + 1);
-                size_t c = s.find('\t', b + 1);
-
-                to_int(s.substr(a + 1, b - (a + 1)), beatmap_set_id);
-                cur_title = std::string(s.substr(b + 1, c - (b + 1)));
-                cur_artist = std::string(s.substr(c + 1));
-                continue;
-            }
-
-            if (s.starts_with("[MAP]")) {
-                std::string_view content = s.substr(5);
-                std::array<std::string_view, 21> parts{};
-                int index = 0;
-                size_t start = 0;
+        if (s.starts_with("[MAP]")) {
+            std::string_view content = s.substr(5);
+            std::array<std::string_view, 21> parts{};
+            int index = 0;
+            size_t start = 0;
+            size_t pos = content.find('\t', start);
+            start = pos + 1;
+            while (index < 20) {
                 size_t pos = content.find('\t', start);
+                parts[index++] = content.substr(start, pos - start);
                 start = pos + 1;
-                while (index < 20) {
-                    size_t pos = content.find('\t', start);
-                    parts[index++] = content.substr(start, pos - start);
-                    start = pos + 1;
-                }
-                parts[20] = content.substr(start);
-
-                file_struct rec{};
-                rec.audio_filename = std::string(parts[0]);
-                rec.title = cur_title;
-                rec.artist = cur_artist;
-                rec.beatmap_set_id = beatmap_set_id;
-                rec.creator = std::string(parts[1]);
-                rec.difficulty = std::string(parts[2]);
-                rec.bg_photo_name = std::string(parts[3]);
-				rec.osu_filename = std::string(parts[20]);
-
-                int i_tmp;
-                float f_tmp;
-
-                to_int(parts[4], i_tmp); rec.preview_time = i_tmp;
-                to_int(parts[5], i_tmp); rec.beatmap_id = i_tmp;
-                to_float(parts[6], f_tmp); rec.hp = f_tmp;
-                to_float(parts[7], f_tmp); rec.cs = f_tmp;
-                to_float(parts[8], f_tmp); rec.od = f_tmp;
-                to_float(parts[9], f_tmp); rec.ar = f_tmp;
-                to_float(parts[10], f_tmp); rec.slider_multiplier = f_tmp;
-                to_float(parts[11], f_tmp); rec.slider_tickrate = f_tmp;
-                to_float(parts[12], f_tmp); rec.star_rating = f_tmp;
-                to_float(parts[13], f_tmp); rec.min_bpm = f_tmp;
-                to_float(parts[14], f_tmp); rec.avg_bpm = f_tmp;
-                to_float(parts[15], f_tmp); rec.max_bpm = f_tmp;
-                to_int(parts[16], i_tmp); rec.map_length = (uint16_t)i_tmp;
-                to_int(parts[17], i_tmp); rec.circle_count = (uint16_t)i_tmp;
-                to_int(parts[18], i_tmp); rec.slider_count = (uint16_t)i_tmp;
-                to_int(parts[19], i_tmp); rec.spinner_count = (uint16_t)i_tmp;
-
-                db.push_back(std::move(rec));
-                continue;
             }
+            parts[20] = content.substr(start);
+
+            file_struct rec{};
+            rec.audio_filename = std::string(parts[0]);
+            rec.title = cur_title;
+            rec.artist = cur_artist;
+            rec.beatmap_set_id = beatmap_set_id;
+            rec.creator = std::string(parts[1]);
+            rec.difficulty = std::string(parts[2]);
+            rec.bg_photo_name = std::string(parts[3]);
+			rec.osu_filename = std::string(parts[20]);
+
+            int i_tmp;
+            float f_tmp;
+
+            to_int(parts[4], i_tmp); rec.preview_time = i_tmp;
+            to_int(parts[5], i_tmp); rec.beatmap_id = i_tmp;
+            to_float(parts[6], f_tmp); rec.hp = f_tmp;
+            to_float(parts[7], f_tmp); rec.cs = f_tmp;
+            to_float(parts[8], f_tmp); rec.od = f_tmp;
+            to_float(parts[9], f_tmp); rec.ar = f_tmp;
+            to_float(parts[10], f_tmp); rec.slider_multiplier = f_tmp;
+            to_float(parts[11], f_tmp); rec.slider_tickrate = f_tmp;
+            to_float(parts[12], f_tmp); rec.star_rating = f_tmp;
+            to_float(parts[13], f_tmp); rec.min_bpm = f_tmp;
+            to_float(parts[14], f_tmp); rec.avg_bpm = f_tmp;
+            to_float(parts[15], f_tmp); rec.max_bpm = f_tmp;
+            to_int(parts[16], i_tmp); rec.map_length = (uint16_t)i_tmp;
+            to_int(parts[17], i_tmp); rec.circle_count = (uint16_t)i_tmp;
+            to_int(parts[18], i_tmp); rec.slider_count = (uint16_t)i_tmp;
+            to_int(parts[19], i_tmp); rec.spinner_count = (uint16_t)i_tmp;
+
+            db.push_back(std::move(rec));
+            continue;
         }
-        auto end = std::chrono::steady_clock::now();
-        std::cout << "DB read in " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "us\n";
-    /* } catch (const std::exception& e) {
-        std::cerr << "Error reading database: " << e.what() << "\n";
-        reconstruct_db();
-	}*/
+    }
+    auto end = std::chrono::steady_clock::now();
+    std::cout << "DB read in " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "us\n";
 }
 
 file_struct db::read_file_metadata(const std::filesystem::path& p) {

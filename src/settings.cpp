@@ -41,6 +41,8 @@ void settings::init() {
 
 void settings::update() {
 
+	// add cursor size control
+
 	auto mouse_pressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 	Vector2 mouse_location = GetMousePosition();
 
@@ -50,11 +52,16 @@ void settings::update() {
 	}
 
 	// display resolutions
-	
+	auto res_text_size = MeasureTextEx(aller_r, "Resolutions", 48 * screen_scale, 0);
+	auto res_subtext_size = MeasureTextEx(aller_r, "(You can scroll)", 24 * screen_scale, 0);
+
+	auto res_text_x = 783 * screen_width_ratio + (208 * screen_width_ratio - res_text_size.x) * 0.5f;
+	auto res_subtext_x = 783 * screen_width_ratio + (208 * screen_width_ratio - res_subtext_size.x) * 0.5f;
+
 	DrawRectangle(750 * screen_width_ratio, 0, screen_width - 684 * screen_width_ratio, screen_height, GRAY);
 	DrawRectangle(750 * screen_width_ratio, 0, 10 * screen_width_ratio, screen_height, BLACK);
-	DrawTextExScaled(aller_r, "Resolutions", { 780, 8 + settings_resolution_scroll_offset }, 48, 0, WHITE);
-	DrawTextExScaled(aller_r, "(You can scroll)", { 780, 40 + settings_resolution_scroll_offset }, 12, 0, WHITE);
+	DrawTextExScaled(aller_r, "Resolutions", { 783, 8 + settings_resolution_scroll_offset }, 48, 0, WHITE);
+	DrawTextExScaled(aller_r, "(You can scroll)", { 830, 40 + settings_resolution_scroll_offset }, 24, 0, WHITE);
 
 	float wheel = GetMouseWheelMove();
 	if (wheel != 0.0f) {
