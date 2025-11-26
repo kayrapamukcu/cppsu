@@ -95,6 +95,9 @@ ingame::ingame(file_struct map) {
 	int timing_point_idx = 0;
 	uint32_t combo_idx = 0;
 	while (std::getline(infile, line)) {
+		static Vector2 last_object_pos = { -1000.0f, -1000.0f };
+		static bool stack_leniency_downward = false;
+
 		chomp_cr(line);
 		if (line.empty()) continue;
 		std::string_view sv = line;
@@ -125,18 +128,21 @@ ingame::ingame(file_struct map) {
 		}
 
 		hit_color_current = hit_color_current % hit_color_count;
+		float x, y;
 
 		switch (hot) {
 		case CIRCLE: {
-			float x, y;
 			to_float(parts[0], x);
 			to_float(parts[1], y);
+
 			x *= playfield_scale;
 			y *= playfield_scale;
 			x += playfield_offset_x;
 			y += playfield_offset_y;
 			hit_objects.push_back(HitObjectEntry{ {x, y}, time, time, circle_cnt, hit_color_current, hot, combo_idx });
 			circle_cnt++;
+
+			
 			break;
 		}
 		case SLIDER: {
@@ -157,13 +163,14 @@ ingame::ingame(file_struct map) {
 			to_int(slider_parts[1], slider_repeat);
 			to_int(slider_parts[2], slider_length);
 			end_time = time + (int)(slider_repeat * slider_length * timing_points[timing_point_idx].ms_beat / (100 * timing_points[timing_point_idx].slider_velocity)); // TODO : is this correct?
-			float x, y;
+			
 			to_float(parts[0], x);
 			to_float(parts[1], y);
 			x *= playfield_scale;
 			y *= playfield_scale;
 			x += playfield_offset_x;
 			y += playfield_offset_y;
+
 			// parse slider shape
 			auto& slider_line = slider_parts[0];
 			unsigned char shape = slider_line[0];
@@ -360,6 +367,7 @@ ingame::ingame(file_struct map) {
 			sliders.push_back(Slider{ (uint16_t)slider_repeat, false, shape, slider_length * playfield_scale, std::move(path), std::move(corners), slider_repeat, {x, y} });
 			hit_objects.push_back(HitObjectEntry{ {x, y}, time, end_time, slider_cnt, hit_color_current, hot, combo_idx });
 			slider_cnt++;
+
 			break;
 		}
 		case SPINNER:
@@ -371,6 +379,70 @@ ingame::ingame(file_struct map) {
 		default:
 			break;
 		}
+
+		// stack leniency
+
+		index = (int)hit_objects.size() - 1;
+		static bool under_slider = false;
+		static Vector2 to_compare = { 0, 0 };
+		static int stack_counter = 1;
+
+		while( index > 0 ) {
+			auto& cur_obj = hit_objects[index];
+			auto& prev_obj = hit_objects[index - 1];
+			if (cur_obj.time - prev_obj.end_time > (int)(approach_rate_milliseconds * map_info.stack_leniency)) {
+				break;
+			}
+
+			switch (prev_obj.type) {
+			case CIRCLE:
+				begin_circle_check:
+				if (under_slider) {
+					if (roughly_equal(to_compare, cur_obj.pos)) {
+						cur_obj.pos.x += 3.5 * playfield_scale * stack_counter;
+						cur_obj.pos.y += 3.5 * playfield_scale * stack_counter;
+						stack_counter++;
+						goto end_loop;
+					}
+					else {
+						under_slider = false;
+						stack_counter = 1;
+						goto begin_circle_check;
+					}
+				}
+				else if (roughly_equal(cur_obj.pos, prev_obj.pos)) {
+					prev_obj.pos.x -= 3.5 * playfield_scale;
+					prev_obj.pos.y -= 3.5 * playfield_scale;
+				}
+				else goto end_loop;
+			break;
+			case SLIDER:
+				// check both beginning & end
+				if (roughly_equal(cur_obj.pos, prev_obj.pos)) {
+					prev_obj.pos.x -= 3.5 * playfield_scale;
+					prev_obj.pos.y -= 3.5 * playfield_scale;
+					for( auto& p : sliders[prev_obj.idx].path ) {
+						p.x -= 3.5 * playfield_scale;
+						p.y -= 3.5 * playfield_scale;
+					}
+				}
+				else if (roughly_equal({ sliders[prev_obj.idx].path.back().x, sliders[prev_obj.idx].path.back().y }, cur_obj.pos)) {
+					// reverse everythin' in this case
+					// they all have to be *under* the slider...
+					under_slider = true;
+					to_compare = { cur_obj.pos.x, cur_obj.pos.y };
+					cur_obj.pos.x += 3.5 * playfield_scale;
+					cur_obj.pos.y += 3.5 * playfield_scale;
+					stack_counter++;
+					goto end_loop;
+				}
+				else goto end_loop;
+			break;
+			}
+
+			index--;
+		}
+	end_loop:;
 	}
 	map_begin_time = -GetTime() * 1000.0f * map_speed - 1000.0f;
 
@@ -505,6 +577,7 @@ void ingame::update() {
 			game_state = RESULT_SCREEN;
 			return;
 		}
+		return;
 	}
 
 	if (IsKeyPressed(KEY_Z)) {
@@ -565,7 +638,7 @@ void ingame::update() {
 		case CIRCLE: {
 			// check for disappearance
 
-			while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time - hit_window_50 * 0.5f) {
+			while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time - hit_window_50) {
 				std::cout << "Missed Circle at time " << ho.time << "\n";
 				misses++;
 				combo = 0;

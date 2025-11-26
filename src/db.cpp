@@ -12,8 +12,6 @@
 #include "globals.hpp"
 #include "song_select.hpp"
 
-// todo : add source to db. if source exists, display it in Source (Artist) format in song select. add slider leniency to db too.
-
 void db::init() {
 	fs_path = std::filesystem::current_path();
 }
@@ -23,8 +21,8 @@ void db::reconstruct_db() {
     auto begin = std::chrono::steady_clock::now();
     int total_maps = 0;
     std::ofstream database(fs_path / "database.db");
-    database << "[General]\nFormat: " << DB_VERSION << "\nLastID:" << last_assigned_id << "\n" << "[Data]\n";;
-
+    database << "[General]\nFormat: " << DB_VERSION << "\nLastID:" << last_assigned_id << "\n" << "[Data]\n";
+    database.flush();
     // Loop over all directories
     std::filesystem::path maps_path = fs_path / "maps";
     if (!std::filesystem::is_directory(maps_path)) {
@@ -47,6 +45,20 @@ void db::reconstruct_db() {
         auto content = get_files(maps_path / d); // Get all .osu files in directory
         database << "[SET]\t" << d;
 
+		bool ok = [](const std::string& s) { // check if string is integer
+            int v;
+            auto [p, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
+            return ec == std::errc{} && p == s.data() + s.size();
+            }(d);
+		if (ok) { // update last assigned ID if needed
+            int set_id = std::stoi(d);
+
+            if (set_id >= last_assigned_id) {
+                last_assigned_id = set_id;
+                last_assigned_id += 32;
+				update_last_ids();
+            }
+		}
         // Read first file to get artist/title
         file_struct data = read_file_metadata(maps_path / d / content[0]);
         database << "\t" << data.title << "\t" << data.artist << "\n";
@@ -456,17 +468,17 @@ void db::read_db(std::vector<file_struct>& db) {
 
         if (s.starts_with("[MAP]")) {
             std::string_view content = s.substr(5);
-            std::array<std::string_view, 21> parts{};
+            std::array<std::string_view, 25> parts{};
             int index = 0;
             size_t start = 0;
             size_t pos = content.find('\t', start);
             start = pos + 1;
-            while (index < 20) {
+            while (index < 24) {
                 size_t pos = content.find('\t', start);
                 parts[index++] = content.substr(start, pos - start);
                 start = pos + 1;
             }
-            parts[20] = content.substr(start);
+            parts[24] = content.substr(start);
 
             file_struct rec{};
             rec.audio_filename = std::string(parts[0]);
@@ -477,6 +489,7 @@ void db::read_db(std::vector<file_struct>& db) {
             rec.difficulty = std::string(parts[2]);
             rec.bg_photo_name = std::string(parts[3]);
 			rec.osu_filename = std::string(parts[20]);
+            rec.source = std::string(parts[23]);
 
             int i_tmp;
             float f_tmp;
@@ -497,6 +510,9 @@ void db::read_db(std::vector<file_struct>& db) {
             to_int(parts[17], i_tmp); rec.circle_count = (uint16_t)i_tmp;
             to_int(parts[18], i_tmp); rec.slider_count = (uint16_t)i_tmp;
             to_int(parts[19], i_tmp); rec.spinner_count = (uint16_t)i_tmp;
+			to_float(parts[21], f_tmp); rec.stack_leniency = f_tmp;
+            to_int(parts[22], i_tmp); rec.sample_set = (sample_sets)(i_tmp);
+            to_int(parts[24], i_tmp); rec.mode = i_tmp;
 
             db.push_back(std::move(rec));
             continue;
@@ -511,12 +527,16 @@ file_struct db::read_file_metadata(const std::filesystem::path& p) {
     std::ifstream f(p);
     if (!f) return md;
 
+    std::string sample_set_str;
+
+    
+
     struct Handler {
         std::string_view key;
         void (*set)(file_struct&, std::string_view);
     };
 
-    static constexpr std::array<Handler, 15> handlerList = { {
+    static constexpr std::array<Handler, 19> handlerList = { {
         {"AudioFilename",      [](auto& m, std::string_view v) { m.audio_filename = std::string(v); }},
         {"Title",       [](auto& m, std::string_view v) { m.title = std::string(v); }},
         {"Artist",      [](auto& m, std::string_view v) { m.artist = std::string(v); }},
@@ -532,12 +552,15 @@ file_struct db::read_file_metadata(const std::filesystem::path& p) {
         {"SliderMultiplier",       [](auto& m, std::string_view v) { float x; to_float(v,x); m.slider_multiplier = x; }},
         {"SliderTickrate",       [](auto& m, std::string_view v) { float x; to_float(v,x); m.slider_tickrate = x; }},
         {"StarRating",         [](auto& m, std::string_view v) { float x; to_float(v,x); m.star_rating = x; }},
-    } };
+        {"Source",         [](auto& m, std::string_view v) { m.source = std::string(v); }},
+        {"SampleSet", 	 [](auto&m, std::string_view v) { m.sample_set = parse_sample_set(v); }},
+		{"StackLeniency", 	 [](auto& m, std::string_view v) { float x; to_float(v,x); m.stack_leniency = x; }},
+		{"Mode", 	 [](auto& m, std::string_view v) { int x; to_int(v,x); m.mode = x; }},
+    }};
 
     std::string line;
 
     int state = 0;
-
     while (std::getline(f, line)) {
 		chomp_cr(line);
         if (line == "[TimingPoints]") {
@@ -681,7 +704,7 @@ file_struct db::read_file_metadata(const std::filesystem::path& p) {
     if (md.beatmap_set_id < 0) {
         md.beatmap_set_id = last_assigned_id;
 	}
-    if (md.beatmap_id < 0) {
+    if (md.beatmap_id <= 0) {
         md.beatmap_id = last_assigned_id + last_assigned_map_id;
 		last_assigned_map_id++;
     }

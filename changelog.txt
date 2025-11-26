@@ -1,3 +1,9 @@
+Known bugs:
+
+(!!) Slider overdraw on red ticks
+(!!) Offset problem
+
+
 a2025.1118
 
 (*) Fixed crash on trying to enter song select with an invalid db
@@ -20,11 +26,20 @@ a2025.1123
 
 a2025.1124
 
-(+) Slider rendering done
+! (+) Slider rendering done
 (*) Fixed crash on result screen for old computers
 
 a2025.1125
 
-(~) Slider rendering fixes & logic progress
+! (~) Slider rendering fixes & slider logic progress
 (*) Fixed slider end times
 (*) Fixed a database crash
+
+a2025.1126
+
+! (+) Added stack leniency
+(*) Database version 8: more map metadata stored
+(*) Fixed database LastID bug
+(*) Fixed a map import bug
+(*) Fixed crash after map end bug
+(*) Fixed annoying building bug (Dev)

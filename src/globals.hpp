@@ -12,6 +12,12 @@
 
 // Enums and structs
 
+enum sample_sets {
+	SAMPLE_SET_NORMAL,
+	SAMPLE_SET_SOFT,
+	SAMPLE_SET_DRUM
+};;
+
 enum ranks {
 	RANK_F,
 	RANK_D,
@@ -64,6 +70,12 @@ struct file_struct {
 	uint16_t circle_count = 0;
 	uint16_t slider_count = 0;
 	uint16_t spinner_count = 0;
+
+	float stack_leniency = 0.5f;
+	sample_sets sample_set = SAMPLE_SET_NORMAL;
+
+	std::string source;
+	int mode = 0;
 };
 
 struct results_struct {
@@ -97,8 +109,8 @@ struct Notice {
 
 // Global variables
 
-inline constexpr int DB_VERSION = 7;
-inline constexpr std::string_view CLIENT_VERSION = "a2025.1125";
+inline constexpr int DB_VERSION = 8;
+inline constexpr std::string_view CLIENT_VERSION = "a2025.1126";
 
 inline float screen_width = 1024;
 inline float screen_height = 768;
@@ -146,9 +158,15 @@ inline bool k2_down = false;
 
 inline std::string player_name = "Player";
 
-
-
 // Helper functions
+
+static inline bool roughly_equal(float a, float b) {
+	return std::fabs(a - b) <= 1.5f * playfield_scale;
+}
+
+static inline bool roughly_equal(Vector2 a, Vector2 b) {
+	return roughly_equal(a.x, b.x) && roughly_equal(a.y, b.y);
+}
 
 static inline void chomp_cr(std::string& s) {
 	// CHOMP

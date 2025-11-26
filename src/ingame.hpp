@@ -61,7 +61,7 @@ public:
 	inline void recalculate_acc();
 private:
 	static constexpr float draw_hit_time = 0.4f;
-	float map_speed = 1.0f;
+	float map_speed = 1.25f;
 	Vector2 mouse_pos = { 0, 0 };
 	file_struct map_info;
 	float map_time = -1000.0f;

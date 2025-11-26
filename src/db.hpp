@@ -32,8 +32,15 @@ public:
 	}
 
 	static inline void write_to_file(std::ofstream& database, file_struct data) {
-		database << "[MAP]\t" << data.audio_filename << "\t" << data.creator << "\t" << data.difficulty << "\t" << data.bg_photo_name << "\t" << data.preview_time << "\t" << data.beatmap_id << "\t" << data.hp << "\t" << data.cs << "\t" << data.od << "\t" << data.ar << "\t" << data.slider_multiplier << "\t" << data.slider_tickrate << "\t" << data.star_rating << "\t" << data.min_bpm << "\t" << data.avg_bpm << "\t" << data.max_bpm << "\t" << data.map_length << "\t" << data.circle_count << "\t" << data.slider_count << "\t" << data.spinner_count << "\t" << data.osu_filename << "\n";
+		database << "[MAP]\t" << data.audio_filename << "\t" << data.creator << "\t" << data.difficulty << "\t" << data.bg_photo_name << "\t" << data.preview_time << "\t" << data.beatmap_id << "\t" << data.hp << "\t" << data.cs << "\t" << data.od << "\t" << data.ar << "\t" << data.slider_multiplier << "\t" << data.slider_tickrate << "\t" << data.star_rating << "\t" << data.min_bpm << "\t" << data.avg_bpm << "\t" << data.max_bpm << "\t" << data.map_length << "\t" << data.circle_count << "\t" << data.slider_count << "\t" << data.spinner_count << "\t" << data.osu_filename << "\t" << data.stack_leniency << "\t" << data.sample_set << "\t" << data.source << "\t" << data.mode << "\n";
 	}
+
+	static inline sample_sets parse_sample_set(std::string_view s) {
+		if (s == "Normal") return SAMPLE_SET_NORMAL;
+		else if (s == "Soft") return SAMPLE_SET_SOFT;
+		else if (s == "Drum") return SAMPLE_SET_DRUM;
+		else return SAMPLE_SET_NORMAL;
+	};
 
 	static void reconstruct_db();
 	static std::vector<std::string> open_osz_dialog();
