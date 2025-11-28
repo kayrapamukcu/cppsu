@@ -1,8 +1,27 @@
-Known bugs:
+-----------
+Known  Bugs
+-----------
 
 (!!) Slider overdraw on red ticks
 (!!) Offset problem
+(!) Slider bodies are not transparent
 
+-----------
+   To do
+-----------
+
+db.cpp : update map imports & db reconstruction to update the screen (instead of not responding the whole time)
+ingame.cpp : improve bezier slider rendering, unnecessary draws on corners
+song_select.cpp : add right click on maps for good gui delete
+		  add search function
+		  improve background rendering (no scaling just crop, parallax effects)
+settings.cpp : add an option for background rendering in-game
+	       add an option for slider resolution for potentially better performance
+	       add an option to toggle slider-end rendering
+
+-----------
+ Changelog
+-----------
 
 a2025.1118
 
@@ -29,7 +48,7 @@ a2025.1124
 ! (+) Slider rendering done
 (*) Fixed crash on result screen for old computers
 
-a2025.1125
+a2025.1125 (release alpha v0.0.1)
 
 ! (~) Slider rendering fixes & slider logic progress
 (*) Fixed slider end times
@@ -41,5 +60,11 @@ a2025.1126
 (*) Database version 8: more map metadata stored
 (*) Fixed database LastID bug
 (*) Fixed a map import bug
-(*) Fixed crash after map end bug
+(*) Fixed crash after map end in some cases
 (*) Fixed annoying building bug (Dev)
+(*) Fixed different mp3s on the same mapset not being played on the song select screen
+(*) A few minor code changes
+
+a2025.1128
+
+(+) Implemented sliderticks

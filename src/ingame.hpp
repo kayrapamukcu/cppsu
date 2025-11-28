@@ -25,14 +25,20 @@ struct HitObjectResult {
 };
 
 struct Slider {
-	uint16_t repeat_count;
+	int repeat_count;
 	bool head_hit;
-	unsigned char slider_type; // 0 = linear, 1 = bezier, 2 = perfect
+	bool tail_hit;
+	bool head_hit_checked;
+	bool tail_hit_checked;
 	float length;
-	std::vector<Vector3> path;
-	std::vector<Vector3> corners;
 	int repeat_left;
 	Vector2 slider_ball_pos;
+	std::vector<Vector3> path;
+	std::vector<Vector3> corners;
+	std::vector<Vector4> slider_ticks; // x, y, time, hitresult
+	int on_slider_tick;
+	bool tracked;
+	unsigned char slider_type; // 0 = linear, 1 = bezier, 2 = perfect
 };
 
 struct HitObjectEntry {
@@ -60,6 +66,7 @@ public:
 	void draw();
 	inline void recalculate_acc();
 private:
+	static constexpr float slider_body_hit_radius = 1.5f;
 	static constexpr float draw_hit_time = 0.4f;
 	float map_speed = 1.25f;
 	Vector2 mouse_pos = { 0, 0 };
@@ -73,6 +80,8 @@ private:
 	float circle_radius = 200.0f;
 	float slider_resolution = 6.0f;
 	float accuracy = 100.0f;
+	float tick_draw_delay = 40.0f;
+
 	uint32_t score = 0;
 	uint32_t combo = 0;
 	uint32_t max_combo = 0;

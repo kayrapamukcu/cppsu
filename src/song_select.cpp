@@ -18,11 +18,7 @@ file_struct song_select::selected_map = file_struct();
 int song_select::y_offset = 0;
 int song_select::max_base = 0;
 std::filesystem::path song_select::loaded_bg_path;
-
-// todo: for bg photos, instead of scaling the entire thing down to the screen res, scale the height, and cut off the sides (or vice versa, whatever is required)
-// todo: add search
-// todo: parallax bg
-
+std::filesystem::path song_select::loaded_audio_path;
 
 void song_select::choose_beatmap(int idx) {
 	auto& before_tex = map_list[idx].bg_photo_name;
@@ -36,6 +32,7 @@ void song_select::choose_beatmap(int idx) {
 			game_state = MAIN_MENU;
 			return;
 		}
+		loaded_audio_path = audio_path;
 	}
 	else selected_map = map_list[idx];
 	if(IsMusicStreamPlaying(music) == false) {
@@ -45,7 +42,7 @@ void song_select::choose_beatmap(int idx) {
 	selected_map_list_index = idx;
 	selected_mapset = map_list[idx].beatmap_set_id;
 
-	
+
 	std::filesystem::path bg_path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / selected_map.bg_photo_name;
 	if (loaded_bg_path != bg_path) {
 		UnloadTexture(background.tex);
@@ -54,6 +51,22 @@ void song_select::choose_beatmap(int idx) {
 		}
 		background = LoadTextureCompat(bg_path.string().c_str());
 	}
+
+	std::filesystem::path audio_path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / selected_map.audio_filename;
+
+	if (loaded_audio_path != audio_path) {
+		UnloadMusicStreamFromRam(music);
+		music = LoadMusicStreamFromRam(audio_path.string().c_str());
+		if(!music.ctxData) {
+			std::cout << "Failed to load music: " << audio_path << "\n";
+			game_state = MAIN_MENU;
+			return;
+		}
+		loaded_audio_path = audio_path;
+		PlayMusicStream(music);
+		SeekMusicStream(music, selected_map.preview_time / 1000.0f);
+	}
+
 	loaded_bg_path = bg_path;
 }
 
@@ -183,9 +196,7 @@ void song_select::draw() {
 		DrawTextEx(aller_b, m.difficulty.c_str(), { x_origin, y_origin + 42 * screen_height_ratio }, 18 * screen_height_ratio, 0, WHITE);
 	}
 
-	// DrawTextureCompatPro(song_select_top_bar, { 0,0 }, WHITE);
 	DrawTexturePro(song_select_top_bar, { 0, 0, (float)song_select_top_bar.width, (float)song_select_top_bar.height }, { 0, 0, screen_width, screen_height / 5.4f }, { 0, 0 }, 0.0f, WHITE);
-	// DrawTopBar();
 	DrawTextEx(aller_l, (selected_map.artist + " - " + selected_map.title + " [" + selected_map.difficulty + "]").c_str(), { 60*screen_scale, 4*screen_scale }, 36*screen_scale, 0, WHITE);
 	DrawTextEx(aller_l, ("Mapped by " + selected_map.creator).c_str(), { 60*screen_scale, 36*screen_scale }, 24*screen_scale, 0, WHITE);
 

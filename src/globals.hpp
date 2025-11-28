@@ -1,14 +1,12 @@
 #pragma once
 
 #include "raylib.h"
+#include <cmath>
 #include <vector>
 #include <string>
 #include <format>
 #include <fstream>
 #include <chrono>
-
-#define GLFW_INCLUDE_NONE
-#include <GLFW/glfw3.h>
 
 // Enums and structs
 
@@ -110,7 +108,7 @@ struct Notice {
 // Global variables
 
 inline constexpr int DB_VERSION = 8;
-inline constexpr std::string_view CLIENT_VERSION = "a2025.1126";
+inline constexpr std::string_view CLIENT_VERSION = "a2025.1128";
 
 inline float screen_width = 1024;
 inline float screen_height = 768;

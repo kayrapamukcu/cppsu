@@ -13,6 +13,7 @@ mapsasd/
 *.userosscache
 *.sln.docstates
 cppsu.zip
+cppsu.exe
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

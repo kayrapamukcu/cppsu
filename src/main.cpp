@@ -10,13 +10,12 @@
 #include <chrono>
 #include <thread>
 
-#include "db.hpp";
+#include "db.hpp"
 #include "globals.hpp"
 #include "song_select.hpp"
 #include "ingame.hpp"
 #include "result_screen.hpp"
 #include "settings.hpp"
-
 
 using json = nlohmann::json;
 
@@ -25,7 +24,6 @@ int main()
 	std::ios::sync_with_stdio(false);
 	// INIT SEQUENCE
 	db::init();	
-
 	InitWindow(screen_width, screen_height, "cppsu!");
 	InitAudioDevice();
 	SetExitKey(KEY_NULL);
@@ -146,7 +144,6 @@ int main()
 			case IMPORTING:
 				DrawRectangleGradientH(0, 0, screen_width, screen_height, YELLOW, ORANGE);
 				DrawTextExScaled(aller_r, "Importing maps...", { 32, 32 }, 108, 0, BLACK);
-				// todo : revamp this.
 				for (int i = 0; i < maps_getting_added.size(); i++) {
 
 					DrawTextExScaled(aller_r, maps_getting_added[i].c_str(), {32, (float)128 + i * 24}, 24, 0, BLACK);

@@ -9,6 +9,22 @@ result_screen::result_screen(results_struct results)
 	score_str = std::to_string(results.score);
 	auto n = score_str.length();
 	if (n < 8) score_str.insert(0, 8 - n, '0');
+
+	// can't use modern chrono functions because we're trying to support old operating systems
+
+	std::time_t t = std::chrono::system_clock::to_time_t(results.time);
+	std::tm local_tm{};
+
+	#if defined(_WIN32)
+		localtime_s(&local_tm, &t);      // MSVC / Windows
+	#else
+		localtime_r(&t, &local_tm);      // POSIX
+	#endif
+
+	char time_buf[32];
+	std::strftime(time_buf, sizeof(time_buf), "%d.%m.%Y %H:%M:%S", &local_tm);
+
+	played_text = "Played by " + results.player_name + " on " + std::string(time_buf) + ".";
 }
 
 void result_screen::draw() {
@@ -37,27 +53,10 @@ void result_screen::draw() {
 
 	// Draw overlay
 	DrawRectangle(0, 0, (int)screen_width, (int)(screen_height / 8), Color{ 0, 0, 0, 200 });
-	// todo : precompute time
-	//auto time = std::chrono::zoned_time{ std::chrono::current_zone(), results.time };
-	//DrawTextExScaled(aller_l, ("Played by " + results.player_name + " on " + std::format("{:%d.%m.%Y %H:%M:%S}", time) + ".").c_str(), { 4, 64 }, 24, 0, WHITE);
-	std::time_t t = std::chrono::system_clock::to_time_t(results.time);
-	std::tm local_tm{};
-
-	#if defined(_WIN32)
-		localtime_s(&local_tm, &t);      // MSVC / Windows
-	#else
-		localtime_r(&t, &local_tm);      // POSIX
-	#endif
-
-	char time_buf[32];
-	std::strftime(time_buf, sizeof(time_buf), "%d.%m.%Y %H:%M:%S", &local_tm);
-
-	std::string playedText = "Played by " + results.player_name + " on " + std::string(time_buf) + ".";
-
-	DrawTextExScaled(aller_l, playedText.c_str(), { 4, 64 }, 24, 0, WHITE);
+	DrawTextExScaled(aller_l, played_text.c_str(), { 4, 64 }, 24, 0, WHITE);
 	DrawTextExScaled(aller_l, results.beatmap_header.c_str(), { 4, 4 }, 36, 0, WHITE);
 	DrawTextExScaled(aller_l, results.beatmap_header_2.c_str(), { 4, 40 }, 24, 0, WHITE);
-	DrawTextExScaled(aller_r, "Ranking", { 800, 4 }, 108, 0, WHITE);
+	DrawTextExScaled(aller_r, "Ranking", { 700, 4 }, 108, 0, WHITE);
 }
 
 void result_screen::update() {

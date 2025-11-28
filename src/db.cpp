@@ -237,7 +237,6 @@ bool db::add_to_db(std::vector<std::string>& maps_getting_added) {
     if (files.empty()) return false;
     game_state = IMPORTING;
     importing_map = true;
-    // todo : instead of having a thread here, do it all in this thread, and after each map import call draw
     std::thread([files, &maps_getting_added]() {
         bool failed = false;
         for (auto& f : files) {
@@ -249,11 +248,9 @@ bool db::add_to_db(std::vector<std::string>& maps_getting_added) {
                 if(ok) 
                     if (!append_set_to_db(id)) {
                         failed = true;
-						//std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
                         maps_getting_added.emplace_back(std::string("Failed to import " + std::to_string(id) + " to database! (already exists?)"));
                     }
                     else {
-                        //std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
                         if (id > 999999999) {
                             last_assigned_id += 32;
                             update_last_ids();
@@ -261,7 +258,6 @@ bool db::add_to_db(std::vector<std::string>& maps_getting_added) {
                         maps_getting_added.emplace_back(std::to_string(id) + " added successfully!");
                     }
                 else {
-                    //std::lock_guard<std::mutex> lk(g_import_msgs_mtx);
                     maps_getting_added.emplace_back(std::string("Failed to import " + std::to_string(id) + " to database! (already exists/map too old/invalid)"));
                 }
         }

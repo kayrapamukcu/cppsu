@@ -4,6 +4,9 @@
 #include "raylib.h"
 #include "globals.hpp"
 
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
+
 class settings {
 public:
 	static void update_screen_resolution(int width, int height);

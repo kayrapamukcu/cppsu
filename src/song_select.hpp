@@ -26,4 +26,5 @@ class song_select {
 		static int y_offset;
 		static int max_base;
 		static std::filesystem::path loaded_bg_path;
+		static std::filesystem::path loaded_audio_path;
 };
