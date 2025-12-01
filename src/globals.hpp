@@ -105,16 +105,24 @@ struct Notice {
 	float time_left;
 };
 
+// Settings variables
+
+inline float screen_width = 1024.0f;
+inline float screen_height = 768.0f;
+
+inline bool settings_sliderend_rendering = false;
+inline float settings_mouse_scale = 1.0f;
+
+inline std::string player_name = "Player";
+
+
 // Global variables
 
 inline constexpr int DB_VERSION = 8;
-inline constexpr std::string_view CLIENT_VERSION = "a2025.1128";
+inline constexpr std::string_view CLIENT_VERSION = "a2025.1201";
 
-inline float screen_width = 1024;
-inline float screen_height = 768;
-
-inline float screen_width_ratio = screen_width / 1024.0f;
-inline float screen_height_ratio = screen_height / 768.0f;
+inline float screen_width_ratio = (float)screen_width / 1024.0f;
+inline float screen_height_ratio = (float)screen_height / 768.0f;
 
 inline float screen_scale = std::min(screen_width_ratio, screen_height_ratio);
 
@@ -144,17 +152,11 @@ inline result_screen* g_result_screen = nullptr;
 
 inline std::vector<Notice> notices;
 
-// Settings variables
+inline bool key1_down = false;
+inline bool key2_down = false;
 
-inline float mouse_scale = 1.0f;
-
-inline KeyboardKey k_1 = KEY_C;
-inline KeyboardKey k_2 = KEY_V;
-
-inline bool k1_down = false;
-inline bool k2_down = false;
-
-inline std::string player_name = "Player";
+inline KeyboardKey key_1 = KEY_C;
+inline KeyboardKey key_2 = KEY_V;
 
 // Helper functions
 
@@ -199,7 +201,7 @@ static inline void DrawBackgroundCompat() {
 	if (!isNPOTSupported) {
 		DrawTexture(background.tex, 0, 0, WHITE);
 	} else
-		DrawTexturePro(background.tex, background.src, { 0,0, screen_width, screen_height }, { 0,0 }, 0.0f, WHITE);
+		DrawTexturePro(background.tex, background.src, { 0,0, (float)screen_width, (float)screen_height }, { 0,0 }, 0.0f, WHITE);
 }
 
 static inline void DrawTextureCompatPro(const TexWithSrc& t, Rectangle dst, Color tint) {
@@ -234,7 +236,7 @@ static Music LoadMusicStreamFromRam(const char* path) {
     std::streamsize size = file.tellg();
     file.seekg(0, std::ios::beg);
 
-    g_musicData.resize(size);
+    g_musicData.resize((size_t)size);
     if (!file.read(reinterpret_cast<char*>(g_musicData.data()), size)) {
         TraceLog(LOG_ERROR, "Failed to read music file: %s", path);
         return {0};

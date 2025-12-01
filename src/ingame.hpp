@@ -36,7 +36,8 @@ struct Slider {
 	std::vector<Vector3> path;
 	std::vector<Vector3> corners;
 	std::vector<Vector4> slider_ticks; // x, y, time, hitresult
-	int on_slider_tick;
+	uint32_t on_slider_tick;
+	uint32_t slider_end_check_time;
 	bool tracked;
 	unsigned char slider_type; // 0 = linear, 1 = bezier, 2 = perfect
 };
@@ -66,9 +67,9 @@ public:
 	void draw();
 	inline void recalculate_acc();
 private:
-	static constexpr float slider_body_hit_radius = 1.5f;
+	static constexpr float slider_body_hit_radius = 2.0f;
 	static constexpr float draw_hit_time = 0.4f;
-	float map_speed = 1.25f;
+	float map_speed = 1.0f;
 	Vector2 mouse_pos = { 0, 0 };
 	file_struct map_info;
 	float map_time = -1000.0f;

@@ -911,6 +911,53 @@ void DrawRectangleLines(int posX, int posY, int width, int height, Color color)
 */
 }
 
+void DrawRectangleLinesF(float posX, float posY, float width, float height, Color color)
+{
+    Matrix mat = rlGetMatrixTransform();
+    float xOffset = 0.5f / mat.m0;
+    float yOffset = 0.5f / mat.m5;
+
+    rlBegin(RL_LINES);
+    rlColor4ub(color.r, color.g, color.b, color.a);
+    rlVertex2f(posX + xOffset, posY + yOffset);
+    rlVertex2f(posX + width - xOffset, posY + yOffset);
+                                       
+    rlVertex2f(posX + width - xOffset, posY + yOffset);
+    rlVertex2f(posX + width - xOffset, posY + height - yOffset);
+                                       
+    rlVertex2f(posX + width - xOffset, posY + height - yOffset);
+    rlVertex2f(posX + xOffset, posY + height - yOffset);
+                               
+    rlVertex2f(posX + xOffset, posY + height - yOffset);
+    rlVertex2f(posX + xOffset, posY + yOffset);
+    rlEnd();
+
+    /*
+    // Previous implementation, it has issues... but it does not require view matrix...
+    #if defined(SUPPORT_QUADS_DRAW_MODE)
+        DrawRectangle(posX, posY, width, 1, color);
+        DrawRectangle(posX + width - 1, posY + 1, 1, height - 2, color);
+        DrawRectangle(posX, posY + height - 1, width, 1, color);
+        DrawRectangle(posX, posY + 1, 1, height - 2, color);
+    #else
+        rlBegin(RL_LINES);
+            rlColor4ub(color.r, color.g, color.b, color.a);
+            rlVertex2f((float)posX, (float)posY);
+            rlVertex2f((float)posX + (float)width, (float)posY + 1);
+
+            rlVertex2f((float)posX + (float)width, (float)posY + 1);
+            rlVertex2f((float)posX + (float)width, (float)posY + (float)height);
+
+            rlVertex2f((float)posX + (float)width, (float)posY + (float)height);
+            rlVertex2f((float)posX + 1, (float)posY + (float)height);
+
+            rlVertex2f((float)posX + 1, (float)posY + (float)height);
+            rlVertex2f((float)posX + 1, (float)posY + 1);
+        rlEnd();
+    #endif
+    */
+}
+
 // Draw rectangle outline with extended parameters
 void DrawRectangleLinesEx(Rectangle rec, float lineThick, Color color)
 {

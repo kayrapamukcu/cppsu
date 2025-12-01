@@ -16,9 +16,9 @@ result_screen::result_screen(results_struct results)
 	std::tm local_tm{};
 
 	#if defined(_WIN32)
-		localtime_s(&local_tm, &t);      // MSVC / Windows
+		localtime_s(&local_tm, &t); // Windows
 	#else
-		localtime_r(&t, &local_tm);      // POSIX
+		localtime_r(&t, &local_tm); // MacOS / Linux
 	#endif
 
 	char time_buf[32];
@@ -50,8 +50,7 @@ void result_screen::draw() {
 	DrawTextEx(aller_b, (std::to_string(results.katu) + "x").c_str(), { screen_width / 2.3f, screen_height / 3.0f }, 48 * screen_scale, 0, WHITE);
 	DrawTextEx(aller_b, (std::to_string(results.misses) + "x").c_str(), { screen_width / 2.3f, screen_height / 1.75f }, 48 * screen_scale, 0, WHITE);
 
-
-	// Draw overlay
+	// Draw header
 	DrawRectangle(0, 0, (int)screen_width, (int)(screen_height / 8), Color{ 0, 0, 0, 200 });
 	DrawTextExScaled(aller_l, played_text.c_str(), { 4, 64 }, 24, 0, WHITE);
 	DrawTextExScaled(aller_l, results.beatmap_header.c_str(), { 4, 4 }, 36, 0, WHITE);

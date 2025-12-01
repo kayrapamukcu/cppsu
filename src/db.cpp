@@ -176,7 +176,6 @@ bool db::finalize_import(int set_id) {
 }
 
 bool db::append_set_to_db(int set_id) {
-    //std::lock_guard<std::mutex> lk(g_dbFileMutex);
     const auto dbpath = fs_path / "database.db";
     const auto set_path = fs_path / "maps" / std::to_string(set_id);
 
@@ -193,14 +192,9 @@ bool db::append_set_to_db(int set_id) {
         return true;
     }
 
-    // Open DB for append
     std::ofstream dbout(dbpath, std::ios::app);
     if (!dbout) return false;
-    //if (!set_already_there) {
-        // Write the [SET] header
-        dbout << "[SET]\t" << set_id
-            << '\t' << head.title
-            << '\t' << head.artist << '\n';
+    dbout << "[SET]\t" << set_id << '\t' << head.title << '\t' << head.artist << '\n';
     
     for (const auto& fn : files) {
         file_struct m = read_file_metadata(set_path / fn);
@@ -270,8 +264,6 @@ bool db::add_to_db(std::vector<std::string>& maps_getting_added) {
 bool db::remove_from_db(int method, int mapID, int setID) {
     const auto dbpath = fs_path / "database.db";
     if (!std::filesystem::exists(dbpath)) return false;
-
-    //std::lock_guard<std::mutex> lk(g_dbFileMutex);
 
     std::ifstream in(dbpath);
     if (!in) return false;
@@ -546,7 +538,7 @@ file_struct db::read_file_metadata(const std::filesystem::path& p) {
         {"OverallDifficulty",  [](auto& m, std::string_view v) { float x; to_float(v,x); m.od = x; }},
         {"ApproachRate",       [](auto& m, std::string_view v) { float x; to_float(v,x); m.ar = x; }},
         {"SliderMultiplier",       [](auto& m, std::string_view v) { float x; to_float(v,x); m.slider_multiplier = x; }},
-        {"SliderTickrate",       [](auto& m, std::string_view v) { float x; to_float(v,x); m.slider_tickrate = x; }},
+        {"SliderTickRate",       [](auto& m, std::string_view v) { float x; to_float(v,x); m.slider_tickrate = x; }},
         {"StarRating",         [](auto& m, std::string_view v) { float x; to_float(v,x); m.star_rating = x; }},
         {"Source",         [](auto& m, std::string_view v) { m.source = std::string(v); }},
         {"SampleSet", 	 [](auto&m, std::string_view v) { m.sample_set = parse_sample_set(v); }},

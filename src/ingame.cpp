@@ -6,8 +6,6 @@
 #include "result_screen.hpp"
 #include "globals.hpp"
 
-
-
 ingame::ingame(file_struct map) {
 	map_info = map;
 	hit_window_300 = (int)(80.0f - 6.0f * map_info.od);
@@ -15,7 +13,7 @@ ingame::ingame(file_struct map) {
 	hit_window_50 = (int)(200.0f - 10.0f * map_info.od);
 	approach_rate_milliseconds = (map_info.ar < 5.0f) ? int(1800 - 120 * map_info.ar) : int(1200 - 150 * (map_info.ar - 5));
 
-	circle_radius = playfield_scale * (54.4 - (4.48f * map_info.cs));
+	circle_radius = playfield_scale * (54.4f - (4.48f * map_info.cs));
 
 	// parse .osu file	
 	auto file = std::filesystem::current_path() / "maps" / std::to_string(map.beatmap_set_id) / map.osu_filename;
@@ -92,10 +90,10 @@ ingame::ingame(file_struct map) {
 	}
 	if (hit_color_count < 2) hit_color_count = 4;
 	timing_points.shrink_to_fit();
-	int timing_point_idx = 0;
+	uint32_t timing_point_idx = 0;
 	uint32_t combo_idx = 0;
 
-	float ms_per_tick = timing_points[timing_point_idx].ms_beat / map_info.slider_tickrate; // how many ms per slider tick
+	float ms_per_tick = timing_points[timing_point_idx].ms_beat / map_info.slider_tickrate;
 	tick_draw_delay = std::min(40.0f, ms_per_tick * 0.5f);
 
 	while (std::getline(infile, line)) {
@@ -151,7 +149,7 @@ ingame::ingame(file_struct map) {
 		}
 		case SLIDER: {
 			int end_time;
-			// find correct timing point
+			// find correct timing point for this slider
 			while (timing_point_idx + 1 < timing_points.size() && timing_points[timing_point_idx + 1].time <= time) {
 				timing_point_idx++;
 			}
@@ -174,10 +172,6 @@ ingame::ingame(file_struct map) {
 			y *= playfield_scale;
 			x += playfield_offset_x;
 			y += playfield_offset_y;
-
-			// generate slider ticks
-
-			
 
 			// parse slider shape
 			auto& slider_line = slider_parts[0];
@@ -203,7 +197,7 @@ ingame::ingame(file_struct map) {
 				slider_line.remove_prefix(delim + 1);
 			}
 
-			// CALCULATE SLIDER PATH!
+			// slider path calculations
 
 			std::vector<Vector3> path;
 			std::vector<Vector3> corners;
@@ -325,7 +319,7 @@ ingame::ingame(file_struct map) {
 
 				// get points along segments
 				bool firstSegment = true;
-				int cornerIndex = 0;
+				uint32_t cornerIndex = 0;
 
 				for (auto& seg : segments) {
 					const int approxSteps = 32;
@@ -375,15 +369,15 @@ ingame::ingame(file_struct map) {
 
 			// depending on slider length & tickrate, generate ticks
 			// interpolate along path 
-			int total_length = end_time - time;
+			float total_length = float(end_time - time); // (float)slider_repeat;
 
-			int tick_amount = float(end_time - time) / ms_per_tick;
-			if ((end_time - time) % (int)ms_per_tick < 3.0f) tick_amount--;
+			int tick_amount = (int)(float(end_time - time) / ms_per_tick);
+			if ((end_time - time) % (int)ms_per_tick <= 3) tick_amount--;
 
 			float progress_each_tick = 1.0f / path.size();
 			for (int i = 1; i <= tick_amount; ++i) {
 				float tick_time = i * ms_per_tick;
-				float progress_norm = tick_time / (float)total_length;
+				float progress_norm = tick_time / total_length;
 
 				float on_tick = progress_norm / progress_each_tick;
 
@@ -401,7 +395,16 @@ ingame::ingame(file_struct map) {
 				slider_ticks.push_back({ interp_x, interp_y, time + tick_time, 0 });
 			}
 
-			sliders.push_back(Slider{ slider_repeat, false, false, false, false, slider_length * playfield_scale, slider_repeat, {x, y}, std::move(path), std::move(corners), std::move(slider_ticks), 0, false, shape});
+			/*for (int i = 0; i < slider_repeat; ++i) {
+				for (auto& t : slider_ticks) {
+					slider_ticks.push_back(Vector4{ t.x, t.y, t.z + i * total_length, 0 });
+				}
+			}*/
+
+			uint32_t slider_end_check_time = (end_time - time) / 2;
+			slider_end_check_time = std::min(36U, slider_end_check_time);
+
+			sliders.push_back(Slider{ slider_repeat, false, false, false, false, slider_length * playfield_scale, slider_repeat, {x, y}, std::move(path), std::move(corners), std::move(slider_ticks), 0, slider_end_check_time, false, shape});
 			hit_objects.push_back(HitObjectEntry{ {x, y}, time, end_time, slider_cnt, hit_color_current, hot, combo_idx });
 			slider_cnt++;
 
@@ -436,8 +439,8 @@ ingame::ingame(file_struct map) {
 				begin_circle_check:
 				if (under_slider) {
 					if (roughly_equal(to_compare, cur_obj.pos)) {
-						cur_obj.pos.x += 3.5 * playfield_scale * stack_counter;
-						cur_obj.pos.y += 3.5 * playfield_scale * stack_counter;
+						cur_obj.pos.x += 3.5f * playfield_scale * stack_counter;
+						cur_obj.pos.y += 3.5f * playfield_scale * stack_counter;
 						stack_counter++;
 						goto end_loop;
 					}
@@ -448,29 +451,29 @@ ingame::ingame(file_struct map) {
 					}
 				}
 				else if (roughly_equal(cur_obj.pos, prev_obj.pos)) {
-					prev_obj.pos.x -= 3.5 * playfield_scale;
-					prev_obj.pos.y -= 3.5 * playfield_scale;
+					prev_obj.pos.x -= 3.5f * playfield_scale;
+					prev_obj.pos.y -= 3.5f * playfield_scale;
 				}
 				else goto end_loop;
 			break;
 			case SLIDER:
 				// check both beginning & end
 				if (roughly_equal(cur_obj.pos, prev_obj.pos)) {
-					prev_obj.pos.x -= 3.5 * playfield_scale;
-					prev_obj.pos.y -= 3.5 * playfield_scale;
+					prev_obj.pos.x -= 3.5f * playfield_scale;
+					prev_obj.pos.y -= 3.5f * playfield_scale;
 					for( auto& p : sliders[prev_obj.idx].path ) {
-						p.x -= 3.5 * playfield_scale;
-						p.y -= 3.5 * playfield_scale;
+						p.x -= 3.5f * playfield_scale;
+						p.y -= 3.5f * playfield_scale;
 					}
 				}
 				else if (roughly_equal({ sliders[prev_obj.idx].path.back().x, sliders[prev_obj.idx].path.back().y }, cur_obj.pos)) {
 					// reverse everythin' in this case
 					// they all have to be *under* the slider...
-					// TODO : some maps dont work? debug (oyasumi extra/expert i forgor which)
+					// TODO : some maps dont work? debug (oyasumi extra/expert i forgor which and super girl hard diff)
 					under_slider = true;
 					to_compare = { cur_obj.pos.x, cur_obj.pos.y };
-					cur_obj.pos.x += 3.5 * playfield_scale;
-					cur_obj.pos.y += 3.5 * playfield_scale;
+					cur_obj.pos.x += 3.5f * playfield_scale;
+					cur_obj.pos.y += 3.5f * playfield_scale;
 					stack_counter++;
 					goto end_loop;
 				}
@@ -482,7 +485,7 @@ ingame::ingame(file_struct map) {
 		}
 	end_loop:;
 	}
-	map_begin_time = -GetTime() * 1000.0f * map_speed - 1000.0f;
+	map_begin_time = -(float)GetTime() * 1000.0f * map_speed - 1000.0f;
 
 	hit_objects.shrink_to_fit();
 	sliders.shrink_to_fit();
@@ -509,7 +512,7 @@ void ingame::check_hit() {
 
 	switch (ho.type) {
 	case CIRCLE: {
-		if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius * 0.94)) {
+		if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius * 0.94f)) {
 			if (delta <= hit_window_300) {
 				std::cout << "300 with offset " << map_time - ho.time << "!\n";
 				hit300s++;
@@ -549,7 +552,7 @@ void ingame::check_hit() {
 		if (!s.head_hit_checked) {
 			delta = std::abs(map_time - ho.time);
 			if (delta > 360) return;
-			if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius * 0.94)) {
+			if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius * 0.94f)) {
 				s.head_hit_checked = true;
 				if (delta <= hit_window_50) {
 					std::cout << "Slider head hit! " << map_time - ho.time << "!\n";
@@ -561,6 +564,7 @@ void ingame::check_hit() {
 					std::cout << "Slider head miss! with offset " << map_time - ho.time << "!\n";
 					if (max_combo < combo) max_combo = combo;
 					combo = 0;
+					s.head_hit_checked = true;
 				}
 			}
 		}
@@ -570,7 +574,7 @@ void ingame::check_hit() {
 }
 
 void ingame::update() {
-	map_time = map_begin_time + GetTime() * 1000.0f * map_speed;
+	map_time = map_begin_time + (float)GetTime() * 1000.0f * map_speed;
 	mouse_pos = { (float)GetMouseX(), (float)GetMouseY() };
 	if (on_object >= (int)hit_objects.size()) { // Check for end of map
 		accumulated_end_time += GetFrameTime();
@@ -648,26 +652,26 @@ void ingame::update() {
 			SeekMusicStream(music, skip_target_time / 1000.0f);
 			UpdateMusicStream(music);
 
-			map_begin_time = skip_target_time - GetTime() * 1000.0f * map_speed;
+			map_begin_time = skip_target_time - (float)GetTime() * 1000.0f * map_speed;
 
 			skippable = false;
 			song_init = 2;
 		}
 		break;
 	case 2: // map ongoing
-		if (IsKeyPressed(k_1)) {
-			k1_down = true;
+		if (IsKeyPressed(key_1)) {
+			key1_down = true;
 			check_hit();
 		}
-		if (IsKeyPressed(k_2)) {
-			k2_down = true;
+		if (IsKeyPressed(key_2)) {
+			key2_down = true;
 			check_hit();
 		}
-		if (IsKeyReleased(k_1)) {
-			k1_down = false;
+		if (IsKeyReleased(key_1)) {
+			key1_down = false;
 		}
-		if (IsKeyReleased(k_2)) {
-			k2_down = false;
+		if (IsKeyReleased(key_2)) {
+			key2_down = false;
 		}
 		HitObjectEntry ho;
 		if (on_object < (int)hit_objects.size()) ho = hit_objects[on_object];
@@ -691,7 +695,15 @@ void ingame::update() {
 		case SLIDER: {
 			auto& s = sliders[ho.idx];
 
-			if (k1_down || k2_down) { // check if slider is being tracked rn
+			if(!s.head_hit_checked) {
+				if (ho.time + hit_window_50 < map_time) {
+					std::cout << "Slider head miss at time " << ho.time << "\n";
+					s.head_hit_checked = true;
+					combo = 0;
+				}
+			}
+
+			if (key1_down || key2_down) { // check if slider is being tracked rn
 				if (s.tracked) {
 					s.tracked = CheckCollisionPointCircle(mouse_pos, { s.slider_ball_pos.x, s.slider_ball_pos.y }, circle_radius * 0.94f * 2.4f);
 				}
@@ -703,8 +715,8 @@ void ingame::update() {
 			// check for slider tick hits
 			if (s.on_slider_tick < s.slider_ticks.size()) {
 				if (s.slider_ticks[s.on_slider_tick].z <= map_time) { // time to check
-					if (k1_down || k2_down) {
-						bool hit_tick = CheckCollisionPointCircle(mouse_pos, { s.slider_ticks[s.on_slider_tick].x, s.slider_ticks[s.on_slider_tick].y }, circle_radius * 0.94 *slider_body_hit_radius);
+					if (key1_down || key2_down) {
+						bool hit_tick = CheckCollisionPointCircle(mouse_pos, { s.slider_ticks[s.on_slider_tick].x, s.slider_ticks[s.on_slider_tick].y }, circle_radius * 0.94f * slider_body_hit_radius);
 						if (hit_tick) {
 							std::cout << "Slider tick hit at time " << s.slider_ticks[s.on_slider_tick].z << "\n";
 							s.slider_ticks[s.on_slider_tick].w = 1;
@@ -721,11 +733,11 @@ void ingame::update() {
 			}
 
 			// check end hit
-			if (!s.tail_hit_checked && ho.end_time - 36.0f < map_time) {
+			if (!s.tail_hit_checked && ho.end_time - s.slider_end_check_time < map_time) {
 				s.tail_hit_checked = true;
-				if (k1_down || k2_down) {
-					s.tail_hit = CheckCollisionPointCircle(mouse_pos, { s.path.back().x, s.path.back().y }, circle_radius * 0.94 * slider_body_hit_radius);
-					std::cout << "Slider end hit at time " << ho.end_time - 36.0f << "\n";
+				if (key1_down || key2_down) {
+					s.tail_hit = CheckCollisionPointCircle(mouse_pos, { s.path.back().x, s.path.back().y }, circle_radius * 0.94f * slider_body_hit_radius);
+					std::cout << "Slider end hit at time " << ho.end_time - s.slider_end_check_time << "\n";
 					combo++;
 				}
 			}
@@ -823,7 +835,7 @@ void ingame::update() {
 
 void ingame::draw() {
 	ClearBackground(BLACK);
-	DrawRectangleLines(playfield_offset_x, playfield_offset_y, playfield_scale * 512, playfield_scale * 384, WHITE);
+	DrawRectangleLinesF(playfield_offset_x, playfield_offset_y, playfield_scale * 512.0f, playfield_scale * 384.0f, WHITE);
 
 	if (skippable) {
 		DrawTexturePro(atlas, tex[28], { screen_width - 1.25f * screen_height / 4, screen_height - screen_height / 4, 1.25f * screen_height / 4, screen_height / 4 }, { 0,0 }, 0.0f, WHITE);
@@ -850,11 +862,12 @@ void ingame::draw() {
 		auto& ho = hit_objects[i];
 
 		unsigned char alpha = (unsigned char)std::clamp(255.0f * ((map_time - (ho.time - approach_rate_milliseconds)) / (0.666f * approach_rate_milliseconds)), 0.0f, 255.0f);
-		float approach_scale = std::max(0.0f, (ho.time - map_time)) / approach_rate_milliseconds * circle_radius * 3 + circle_radius * 0.94;
+		float approach_scale = std::max(0.0f, (ho.time - map_time)) / approach_rate_milliseconds * circle_radius * 3.0f + circle_radius * 0.94f;
 		Color color = hit_colors[ho.color_idx];
 		color.a = alpha;
 		Color white_alpha = { 255, 255, 255, alpha };
-		Color circle_color = { color.r, color.g, color.b, alpha * 0.8f };
+		Color circle_color = { color.r, color.g, color.b, (unsigned char)(alpha * 0.8f) };
+
 		switch (ho.type) {
 		case CIRCLE: {
 			DrawTexturePro(atlas, tex[0], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
@@ -865,10 +878,27 @@ void ingame::draw() {
 		}
 		case SLIDER: {
 			auto& s = sliders[ho.idx];
-
 			DrawTexturePro(atlas, tex[0], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
+			
+			// todo : optimize by having a circle texture instead of doing this
+			for (float j = 0; j < 180; j += 10) {
+				Rectangle dest = { ho.pos.x, ho.pos.y, circle_radius * 1.84f, 10 };
+				Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
 
-			Color body_color = { 80, 80, 80, 0.5f * alpha };
+				DrawTexturePro(atlas, tex[61], dest, origin, j, white_alpha);
+			}
+
+			if(!settings_sliderend_rendering) {
+				// todo : optimize by having a circle texture instead of doing this
+				for (float j = s.path.back().z - 180; j < s.path.back().z; j += 10) {
+					Rectangle dest = { s.path.back().x, s.path.back().y, circle_radius * 1.84f, 10 };
+					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
+
+					DrawTexturePro(atlas, tex[61], dest, origin, j, white_alpha);
+				}
+			}
+
+			Color body_color = { 80, 80, 80, (unsigned char)(alpha * 0.5f) };
 			switch (s.slider_type) {
 			case 'L': {
 				Rectangle dest = { (ho.pos.x + s.path[0].x) / 2, (ho.pos.y + s.path[0].y) / 2, circle_radius * 1.84f, s.length };
@@ -888,10 +918,10 @@ void ingame::draw() {
 			}
 			case 'C':
 			case 'B': {
-				int indexToCheck = 0;
-				for (int i = 0; i < s.corners.size(); i++) {
+				uint32_t indexToCheck = 0;
+				for (size_t i = 0; i < s.corners.size(); i++) {
 
-					indexToCheck += s.corners[i].z;
+					indexToCheck += (int)s.corners[i].z;
 
 					float ang1 = ShiftAngleForward(s.path[indexToCheck].z);
 					float ang2 = ShiftAngleForward(s.path[indexToCheck - 1].z);
@@ -922,15 +952,20 @@ void ingame::draw() {
 			}
 
 			if (ho.time < map_time) // draw slider ball
-			DrawCircle(s.slider_ball_pos.x, s.slider_ball_pos.y, circle_radius * 0.92f, YELLOW);
+			DrawCircleV({ s.slider_ball_pos }, circle_radius * 0.92f, YELLOW);
 
-			DrawTexturePro(atlas, tex[21], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, white_alpha);
-			DrawTexturePro(atlas, tex[20], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, circle_color);
-
-			DrawTexturePro(atlas, tex[21], { s.path.back().x - circle_radius, s.path.back().y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, white_alpha);
-			DrawTexturePro(atlas, tex[20], { s.path.back().x - circle_radius, s.path.back().y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, circle_color);
-			DrawTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), { ho.pos.x - MeasureTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), circle_radius * 1.2f, 0).x / 2.0f, ho.pos.y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
 			
+			if (!s.head_hit_checked) {
+				DrawTexturePro(atlas, tex[21], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, white_alpha);
+				DrawTexturePro(atlas, tex[20], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, circle_color);
+				DrawTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), { ho.pos.x - MeasureTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), circle_radius * 1.2f, 0).x / 2.0f, ho.pos.y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE); // TODO : revamp text rendering for sliders
+			}
+
+			if (settings_sliderend_rendering) {
+				DrawTexturePro(atlas, tex[21], { s.path.back().x - circle_radius, s.path.back().y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, white_alpha);
+				DrawTexturePro(atlas, tex[20], { s.path.back().x - circle_radius, s.path.back().y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, circle_color);
+			}
+					
 			// draw reverse arrows
 			if (s.repeat_left > 1) {
 				if (s.repeat_left > 2) { // both ends
@@ -950,7 +985,7 @@ void ingame::draw() {
 			// draw slider ticks
 			int ind_st = 0;
 			for (auto& st : s.slider_ticks) {
-				if (st.w == true) continue; // already hit
+				if (bool(st.w) == true) continue; // already hit
 				
 				if (st.z < map_time + approach_rate_milliseconds * 0.75f + ind_st * tick_draw_delay) {
 					DrawCircleV({ st.x, st.y }, circle_radius * 0.25f, white_alpha);
@@ -964,7 +999,7 @@ void ingame::draw() {
 			// draw ball mouse radius
 			if (ho.time <= map_time) {
 				if (s.tracked) {
-					DrawTexturePro(atlas, tex[0], { s.slider_ball_pos.x - circle_radius * 2.f, s.slider_ball_pos.y - circle_radius * 2.f, circle_radius * 4.f, circle_radius * 4.f }, { 0,0 }, 0.0f, YELLOW);
+					DrawTexturePro(atlas, tex[0], { s.slider_ball_pos.x - circle_radius * slider_body_hit_radius, s.slider_ball_pos.y - circle_radius * slider_body_hit_radius, circle_radius * slider_body_hit_radius * 2.0f, circle_radius * slider_body_hit_radius * 2.0f }, { 0,0 }, 0.0f, YELLOW);
 				}
 			}
 			break;
@@ -1005,5 +1040,5 @@ void ingame::draw() {
 	}
 	
 	// --- Draw UI ---
-	DrawTextExScaled(aller_r, (std::to_string(combo) + "x").c_str(), { 0, screen_height - screen_height / 16.0f }, 36, 0, WHITE);
+	DrawTextExScaled(aller_r, (std::to_string(combo) + "x").c_str(), { 0, screen_height - screen_height / 16.0f }, 48, 0, WHITE);
 }

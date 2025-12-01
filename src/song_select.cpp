@@ -97,11 +97,11 @@ void song_select::init(bool alreadyInitialized) {
 		max_base = std::max(0, map_list_size - visible_entries);
 		y_offset = 0;
 		if (map_list_size < 11) {
-			y_offset = (10 - map_list_size) * entry_row_height / 2;
+			y_offset = (int)((10 - map_list_size) * entry_row_height / 2.0f);
 		}
 	}
 
-	if(IsMusicValid) SetMusicPitch(music, 1.0f);
+	if(IsMusicValid(music)) SetMusicPitch(music, 1.0f);
 	game_state = SONG_SELECT;
 	choose_beatmap(selected_map_list_index);
 }
@@ -125,14 +125,14 @@ void song_select::update() {
 
 	int base = (int)std::floor(current_position);
 
-	float frac = current_position - base;
+	float frac = (float)current_position - (float)base;
 	float y_origin, x_origin;
 
 	// check for clicks
 	if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
 		for (int i = 0; i < visible_entries; ++i) {
 			y_origin = screen_height_ratio * (y_offset + 32.0f + i * entry_row_height - frac * entry_row_height);
-			x_origin = screen_width_ratio * (512.0f + abs(screen_height / 2 - y_origin) * 0.1);
+			x_origin = screen_width_ratio * (512.0f + abs(screen_height / 2 - y_origin) * 0.1f);
 			if (GetMouseY() >= y_origin && GetMouseY() <= y_origin + entry_row_height * screen_height_ratio && GetMouseX() > x_origin) {
 				int idx = (int)base + i;
 				std::cout << "Clicked on entry " << idx << "\n";
@@ -159,7 +159,7 @@ void song_select::draw() {
 
 	int base = (int)std::floor(current_position);
 
-	float frac = current_position - base;
+	float frac = (float)current_position - (float)base;
 	float y_origin, x_origin;
 
 	for (int i = 0; i < visible_entries; ++i) {
@@ -169,7 +169,7 @@ void song_select::draw() {
 		const auto& m = map_list[n];
 
 		y_origin = screen_height_ratio * (y_offset + 32.0f + i * entry_row_height - frac * entry_row_height);
-		x_origin = screen_width_ratio * (512.0f + abs(screen_height / 2 - y_origin) * 0.1);
+		x_origin = screen_width_ratio * (512.0f + abs(screen_height / 2 - y_origin) * 0.1f);
 
 		x_origin = floorf(x_origin);
 		y_origin = floorf(y_origin);

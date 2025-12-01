@@ -24,7 +24,7 @@ int main()
 	std::ios::sync_with_stdio(false);
 	// INIT SEQUENCE
 	db::init();	
-	InitWindow(screen_width, screen_height, "cppsu!");
+	InitWindow((int)screen_width, (int)screen_height, "cppsu!");
 	InitAudioDevice();
 	SetExitKey(KEY_NULL);
 
@@ -44,13 +44,7 @@ int main()
 	atlas = LoadTexture("resources/atlas.png");
 	SetTextureFilter(atlas, TEXTURE_FILTER_BILINEAR);
 	for (auto& [filename, frame] : j["frames"].items()) {
-		Rectangle rect = {
-			(float)frame["frame"]["x"],
-			(float)frame["frame"]["y"],
-			(float)frame["frame"]["w"],
-			(float)frame["frame"]["h"]
-		};
-		// std::cout << filename << ": " << rect.x << "," << rect.y << "\n";
+		Rectangle rect = { (float)frame["frame"]["x"], (float)frame["frame"]["y"], (float)frame["frame"]["w"], (float)frame["frame"]["h"] };
 		tex.push_back(rect);
 	}
 
@@ -99,11 +93,13 @@ int main()
 		}
 
 		BeginDrawing();
-	
+		
+		// TODO : add buttons instead of keybinds
+
 		switch (game_state) {
 			case INIT:
 				ClearBackground(BLACK);
-				passed_time_ratio = (GetTime() - start_time) / 3.56;
+				passed_time_ratio = float(GetTime() - start_time) / 3.56f;
 
 				DrawTexturePro(
 					renderTexture.texture,
@@ -142,9 +138,9 @@ int main()
 				}
 			break;
 			case IMPORTING:
-				DrawRectangleGradientH(0, 0, screen_width, screen_height, YELLOW, ORANGE);
+				DrawRectangleGradientH(0, 0, (int)screen_width, (int)screen_height, YELLOW, ORANGE);
 				DrawTextExScaled(aller_r, "Importing maps...", { 32, 32 }, 108, 0, BLACK);
-				for (int i = 0; i < maps_getting_added.size(); i++) {
+				for (size_t i = 0; i < maps_getting_added.size(); i++) {
 
 					DrawTextExScaled(aller_r, maps_getting_added[i].c_str(), {32, (float)128 + i * 24}, 24, 0, BLACK);
 					i++;
@@ -204,7 +200,7 @@ int main()
 			break;
 		}
 
-		for (int i = 0; i < notices.size(); i++) {
+		for (size_t i = 0; i < notices.size(); i++) {
 			auto& n = notices[i];
 			if (n.time_left < 0) {
 				notices.erase(notices.begin() + i);
@@ -222,14 +218,15 @@ int main()
 					current_line_length = 0;
 				}
 			}
-			DrawRectangle(766 * screen_width_ratio, 550 * screen_height_ratio, 204 * screen_width_ratio, 154 * screen_height_ratio, PURPLE);
-			DrawRectangle(768 * screen_width_ratio, 552 * screen_height_ratio, 200 * screen_width_ratio, 150 * screen_height_ratio, BLACK);
+			DrawRectangle((int)(766.0f * screen_width_ratio), (int)(550.0f * screen_height_ratio), (int)(204.0f * screen_width_ratio), (int)(154.0f * screen_height_ratio), PURPLE);
+			DrawRectangle((int)(768.0f * screen_width_ratio), (int)(552.0f * screen_height_ratio), (int)(200.0f * screen_width_ratio), (int)(150.0f * screen_height_ratio), BLACK);
 			DrawTextExScaled(aller_r, lines.c_str(), { 772, 552 }, 18, 0, WHITE);
 			n.time_left -= GetFrameTime();
 		}
 
+		// draw cursor
 		mousePos = GetMousePosition();
-		DrawTexturePro(atlas, tex[1], { mousePos.x - tex[1].width * mouse_scale / 2, mousePos.y - tex[1].height * mouse_scale / 2, tex[1].width * mouse_scale, tex[1].height * mouse_scale}, { 0,0 }, 0.0f, WHITE); // draw cursor
+		DrawTexturePro(atlas, tex[1], { mousePos.x - tex[1].width * settings_mouse_scale / 2, mousePos.y - tex[1].height * settings_mouse_scale / 2, tex[1].width * settings_mouse_scale, tex[1].height * settings_mouse_scale}, { 0,0 }, 0.0f, WHITE); 
 
 		end_draw:
 		EndDrawing();

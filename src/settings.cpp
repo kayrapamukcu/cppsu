@@ -4,8 +4,8 @@
 void settings::update_screen_resolution(int width, int height) {
 	SetWindowSize(width, height);
 
-	screen_width = width;
-	screen_height = height;
+	screen_width = (float)width;
+	screen_height = (float)height;
 
 	screen_width_ratio = screen_width / 1024.0f;
 	screen_height_ratio = screen_height / 768.0f;
@@ -46,7 +46,7 @@ void settings::update() {
 	auto mouse_pressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 	Vector2 mouse_location = GetMousePosition();
 
-	DrawRectangleGradientV(0, 0, screen_width, screen_height, BLUE, DARKBLUE);
+	DrawRectangleGradientV(0, 0, (int)screen_width, (int)screen_height, BLUE, DARKBLUE);
 	if (IsKeyPressed(KEY_B)) {
 		game_state = MAIN_MENU;
 	}
@@ -81,7 +81,7 @@ void settings::update() {
 		settings_resolution_scroll_offset = 0;
 	}
 
-	for (int i = 0; i < available_resolutions.size(); i++) {
+	for (size_t i = 0; i < available_resolutions.size(); i++) {
 		auto& res = available_resolutions[i];
 		std::string res_str = std::to_string((int)res.x) + "x" + std::to_string((int)res.y);
 		Color col = (res.x == selected_resolution.x && res.y == selected_resolution.y) ? YELLOW : WHITE;

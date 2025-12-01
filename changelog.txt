@@ -32,7 +32,7 @@ a2025.1120
 (*) Fixed slider endpoint positions
 (+) Made song select screen scale with resolution
 (+) Added settings screen
-(~) Slider rendering progress
+(~) Started work on slider rendering
 
 a2025.1121
 
@@ -65,6 +65,16 @@ a2025.1126
 (*) Fixed different mp3s on the same mapset not being played on the song select screen
 (*) A few minor code changes
 
-a2025.1128
+a2025.1128 
 
-(+) Implemented sliderticks
+(+) Implemented slider ticks
+(+) Implemented slider logic
+
+a2025.1129
+(*) Got rid of most warnings in the code
+
+a2025.1201
+(+) Add setting to toggle sliderend rendering
+(*) Fixed short sliders' ends fucking up
+(*) Fixed sliderheads not disappearing after hit
+
