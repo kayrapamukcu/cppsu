@@ -119,7 +119,7 @@ inline std::string player_name = "Player";
 // Global variables
 
 inline constexpr int DB_VERSION = 8;
-inline constexpr std::string_view CLIENT_VERSION = "a2025.1201";
+inline constexpr std::string_view CLIENT_VERSION = "a2025.1205";
 
 inline float screen_width_ratio = (float)screen_width / 1024.0f;
 inline float screen_height_ratio = (float)screen_height / 768.0f;

@@ -13,6 +13,8 @@ ingame::ingame(file_struct map) {
 	hit_window_50 = (int)(200.0f - 10.0f * map_info.od);
 	approach_rate_milliseconds = (map_info.ar < 5.0f) ? int(1800 - 120 * map_info.ar) : int(1200 - 150 * (map_info.ar - 5));
 
+	spinner_rotation_ratio = (map_info.od < 5.0f) ? 5.0f - 2.0f * (5.0f - map_info.od) / 5.0f : 5.0f + 2.5f * (map_info.od - 5.0f) / 5.0f;
+
 	circle_radius = playfield_scale * (54.4f - (4.48f * map_info.cs));
 
 	// parse .osu file	
@@ -206,6 +208,7 @@ ingame::ingame(file_struct map) {
 			switch (shape) {
 			case 'L': {
 				// linear slider
+				process_as_linear_slider:
 				auto angle = atan2(points.back().y - y, points.back().x - x);
 				auto x_mult = cosf(angle) * playfield_scale;
 				auto y_mult = sinf(angle) * playfield_scale;
@@ -281,6 +284,12 @@ ingame::ingame(file_struct map) {
 			}
 			case 'C':
 			case 'B': {
+
+				if (points.size() == 1) {
+					shape = 'L';
+					goto process_as_linear_slider;
+				}
+
 				auto bezier_point = [](const std::vector<Vector2>& controlPoints, float t) -> Vector2 { // get bezier point at t
 					std::vector<Vector2> tmp = controlPoints;
 					int n = tmp.size();
@@ -369,10 +378,10 @@ ingame::ingame(file_struct map) {
 
 			// depending on slider length & tickrate, generate ticks
 			// interpolate along path 
-			float total_length = float(end_time - time); // (float)slider_repeat;
-
-			int tick_amount = (int)(float(end_time - time) / ms_per_tick);
-			if ((end_time - time) % (int)ms_per_tick <= 3) tick_amount--;
+			float total_length = float(end_time - time) / (float)slider_repeat;
+		
+			int tick_amount = (int)(total_length / ms_per_tick);
+			if (std::fmodf(total_length, ms_per_tick) <= 3.0f) tick_amount--;
 
 			float progress_each_tick = 1.0f / path.size();
 			for (int i = 1; i <= tick_amount; ++i) {
@@ -395,27 +404,53 @@ ingame::ingame(file_struct map) {
 				slider_ticks.push_back({ interp_x, interp_y, time + tick_time, 0 });
 			}
 
-			/*for (int i = 0; i < slider_repeat; ++i) {
-				for (auto& t : slider_ticks) {
-					slider_ticks.push_back(Vector4{ t.x, t.y, t.z + i * total_length, 0 });
+			int n = slider_ticks.size();
+			for (int i = 1; i < slider_repeat; ++i) {
+				// push reverse arrows as slider ticks
+				
+				if(i % 2 == 1) {
+					auto& t = path.back();
+					slider_ticks.push_back(Vector4{ t.x, t.y, time + i * (float)total_length, 2 });
 				}
-			}*/
+				else {
+					slider_ticks.push_back(Vector4{ x, y, time + i * (float)total_length, 2 });
+				}
+
+				int last_repeat_time = (int)(i * total_length);
+				for (int j = 0; j < n; j++) {
+					auto& t = slider_ticks[j];
+					if(i % 2 == 1)
+						slider_ticks.push_back(Vector4{ t.x, t.y, 2.0f * time + (i + 1) * (float)total_length - t.z, 1 });
+					else slider_ticks.push_back(Vector4{ t.x, t.y, t.z + last_repeat_time, 1 });
+				}
+			}
 
 			uint32_t slider_end_check_time = (end_time - time) / 2;
 			slider_end_check_time = std::min(36U, slider_end_check_time);
 
-			sliders.push_back(Slider{ slider_repeat, false, false, false, false, slider_length * playfield_scale, slider_repeat, {x, y}, std::move(path), std::move(corners), std::move(slider_ticks), 0, slider_end_check_time, false, shape});
+			uint32_t total_hits = (uint32_t)slider_ticks.size() + 2; // including head & tail
+
+			sliders.push_back(Slider{ slider_repeat, false, false, false, false, slider_length * playfield_scale, slider_repeat, {x, y}, std::move(path), std::move(corners), std::move(slider_ticks), 0, slider_end_check_time, total_hits, 0, false, shape});
 			hit_objects.push_back(HitObjectEntry{ {x, y}, time, end_time, slider_cnt, hit_color_current, hot, combo_idx });
 			slider_cnt++;
 
 			break;
 		}
-		case SPINNER:
+		case SPINNER: {
 			int end_time;
 			to_int(sv.substr(start), end_time);
+
+			int length = end_time - time;
+			int rotation_req = (int)((float)length / 1000.0f * spinner_rotation_ratio);
+			double max_acceleration = 0.00008 + std::max(0.0, (5000.0 - length) / 2000000.0);
+
+			spinners.push_back(Spinner{ rotation_req, 0.0f, max_acceleration, 0.0f, 0.0 });
 			hit_objects.push_back(HitObjectEntry{ {256 * playfield_scale + playfield_offset_x, 192 * playfield_scale + playfield_offset_y}, time, end_time, spinner_cnt, hit_color_current, hot, combo_idx });
 			spinner_cnt++;
+
 			break;
+		}
+			
 		default:
 			break;
 		}
@@ -491,6 +526,25 @@ ingame::ingame(file_struct map) {
 	sliders.shrink_to_fit();
 
 	map_first_object_time = hit_objects[0].time;
+
+	// calculate max TOTAL COMBO
+	int total_max_combo = 0;
+	for (auto& ho : hit_objects) {
+		switch (ho.type) {
+		case CIRCLE:
+			total_max_combo++;
+			break;
+		case SLIDER:
+			total_max_combo += 2 + (int)(sliders[ho.idx].slider_ticks.size());
+			break;
+		case SPINNER:
+			total_max_combo += 1;
+			break;
+		}
+	}
+
+	std::cout << "Map loaded: " << circle_cnt << " circles, " << slider_cnt << " sliders, " << spinner_cnt << " spinners.\n" << "Max combo: " << total_max_combo << "\n";
+
 }
 
 void ingame::recalculate_acc() {
@@ -505,11 +559,11 @@ void ingame::recalculate_acc() {
 	score += 300 * combo;
 }
 
-void ingame::check_hit() {
+void ingame::check_hit(bool notelock_check) {
 	auto& ho = hit_objects[on_object];
 	float delta = std::abs(map_time - ho.time);
 	if (delta > 360) return; // way too early
-
+	if (notelock_check && delta > hit_window_300) return; // too early for hit
 	switch (ho.type) {
 	case CIRCLE: {
 		if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius * 0.94f)) {
@@ -659,13 +713,16 @@ void ingame::update() {
 		}
 		break;
 	case 2: // map ongoing
+		int prev_on_object = on_object;
+		int check_cnt = 0;
+	update_object_jmp: // do all this for the 2 objects to prevent notelock
 		if (IsKeyPressed(key_1)) {
 			key1_down = true;
-			check_hit();
+			check_hit(bool(check_cnt));
 		}
 		if (IsKeyPressed(key_2)) {
 			key2_down = true;
-			check_hit();
+			check_hit(bool(check_cnt));
 		}
 		if (IsKeyReleased(key_1)) {
 			key1_down = false;
@@ -673,6 +730,7 @@ void ingame::update() {
 		if (IsKeyReleased(key_2)) {
 			key2_down = false;
 		}
+		
 		HitObjectEntry ho;
 		if (on_object < (int)hit_objects.size()) ho = hit_objects[on_object];
 		else break;
@@ -689,7 +747,6 @@ void ingame::update() {
 				on_object++;
 				recalculate_acc();
 			}
-
 			break;
 		}
 		case SLIDER: {
@@ -710,16 +767,18 @@ void ingame::update() {
 				else {
 					s.tracked = CheckCollisionPointCircle(mouse_pos, { s.slider_ball_pos.x, s.slider_ball_pos.y, }, circle_radius * 0.94f);
 				}
+			} else {
+				s.tracked = false;
 			}
 
-			// check for slider tick hits
+			// check for slider tick & reverse arrow hits
 			if (s.on_slider_tick < s.slider_ticks.size()) {
 				if (s.slider_ticks[s.on_slider_tick].z <= map_time) { // time to check
 					if (key1_down || key2_down) {
 						bool hit_tick = CheckCollisionPointCircle(mouse_pos, { s.slider_ticks[s.on_slider_tick].x, s.slider_ticks[s.on_slider_tick].y }, circle_radius * 0.94f * slider_body_hit_radius);
 						if (hit_tick) {
-							std::cout << "Slider tick hit at time " << s.slider_ticks[s.on_slider_tick].z << "\n";
-							s.slider_ticks[s.on_slider_tick].w = 1;
+							std::cout << "Slider tick / reverse arrow hit at time " << s.slider_ticks[s.on_slider_tick].z << "\n";
+							s.successful_hits++;
 							combo++;
 							if (max_combo < combo) max_combo = combo;
 							goto slider_tick_check_continue;
@@ -736,6 +795,9 @@ void ingame::update() {
 			if (!s.tail_hit_checked && ho.end_time - s.slider_end_check_time < map_time) {
 				s.tail_hit_checked = true;
 				if (key1_down || key2_down) {
+					if(s.repeat_count % 2 == 0) // even repeat count, end is at beginning
+						s.tail_hit = CheckCollisionPointCircle(mouse_pos, { ho.pos.x, ho.pos.y }, circle_radius * 0.94f * slider_body_hit_radius);
+					else // odd repeat count, end is at end
 					s.tail_hit = CheckCollisionPointCircle(mouse_pos, { s.path.back().x, s.path.back().y }, circle_radius * 0.94f * slider_body_hit_radius);
 					std::cout << "Slider end hit at time " << ho.end_time - s.slider_end_check_time << "\n";
 					combo++;
@@ -746,34 +808,36 @@ void ingame::update() {
 			while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time) {
 				// check end hit
 				
-				int total_hits = 2 + (int)s.slider_ticks.size();
-				int successful_hits = 0;
+				uint32_t successful_hits = s.successful_hits;
 				if (s.head_hit) successful_hits++;
-				for (auto& st : s.slider_ticks) {
-					if (st.w == 1) successful_hits++;
-				}
 				if (s.tail_hit) successful_hits++;
 
-				if (successful_hits >= total_hits) {
+				Vector2 end_pos;
+				if (s.repeat_count % 2 == 0) // even repeat count, end is at beginning
+					end_pos = ho.pos;
+				else // odd repeat count, end is at end
+					end_pos = { s.path.back().x, s.path.back().y };
+
+				if (successful_hits >= s.total_hits) {
 					std::cout << "Slider fully hit at time " << ho.time << "\n";
 					hit300s++;
 					if (max_combo < combo) max_combo = combo;
-					hits.push_back({ { s.path.back().x, s.path.back().y }, draw_hit_time, HIT_300 });
+					hits.push_back({ end_pos, draw_hit_time, HIT_300 });
 				}
-				else if (successful_hits * 2.0f >= total_hits) {
-					std::cout << "Slider 100 at time " << ho.time << "with " << successful_hits << " hits out of " << total_hits << "\n";
+				else if (successful_hits * 2.0f >= s.total_hits) {
+					std::cout << "Slider 100 at time " << ho.time << "with " << successful_hits << " hits out of " << s.total_hits << "\n";
 					hit100s++;
-					hits.push_back({ { s.path.back().x, s.path.back().y }, draw_hit_time, HIT_100 });
+					hits.push_back({ end_pos, draw_hit_time, HIT_100 });
 				} else if (successful_hits > 0) {
-					std::cout << "Slider 50 at time " << ho.time << "with " << successful_hits << " hits out of " << total_hits << "\n";
+					std::cout << "Slider 50 at time " << ho.time << "with " << successful_hits << " hits out of " << s.total_hits << "\n";
 					hit50s++;
-					hits.push_back({ { s.path.back().x, s.path.back().y }, draw_hit_time, HIT_50 });
+					hits.push_back({ end_pos, draw_hit_time, HIT_50 });
 				}
 				else {
-					std::cout << "Slider miss at time " << ho.time << "with " << successful_hits << " hits out of " << total_hits << "\n";
+					std::cout << "Slider miss at time " << ho.time << "with " << successful_hits << " hits out of " << s.total_hits << "\n";
 					misses++;
 					combo = 0;
-					hits.push_back({ { s.path.back().x, s.path.back().y }, draw_hit_time, MISS });
+					hits.push_back({ end_pos, draw_hit_time, MISS });
 				}
 
 
@@ -784,14 +848,30 @@ void ingame::update() {
 			// update slider ball position
 			float path_tick_time = ((float)(ho.end_time - ho.time) / (float)s.repeat_count) / s.path.size();
 
-			int total_length = ho.end_time - ho.time;
-			int progress = std::max(std::min((ho.end_time - (int)map_time), ho.end_time - ho.time), 0);
+			float total_length = (float)(ho.end_time - ho.time);
+			float progress = (map_time - (float)ho.time) / total_length;
+			progress = std::clamp(progress, 0.0f, 1.0f);
 
-			float progress_norm = (float)progress / (float)total_length;
 			float progress_each_tick = 1.0f / s.path.size();
-			float on_tick = (1.0f - progress_norm) / progress_each_tick;
 
+			int repeat_index = (int)(progress * s.repeat_count);
+			repeat_index = std::clamp(repeat_index, 0, s.repeat_count - 1);
+
+			float repeat_progress = (progress * s.repeat_count) - repeat_index;
+			repeat_progress = std::clamp(repeat_progress, 0.0f, 1.0f);
+
+			if(repeat_index % 2 == 1) {
+				repeat_progress = 1.0f - repeat_progress;
+			}
+
+			float on_tick = repeat_progress / progress_each_tick;
 			float remainder = on_tick - (int)on_tick;
+
+			if (s.repeat_left != s.repeat_count - repeat_index) {
+				std::cout << "Slider reverse arrow at time " << map_time << "\n";
+				s.repeat_left = s.repeat_count - repeat_index;
+			}
+			
 
 			if (s.path.size() == 1) { // linear sliders
 				float interp_x = (1.0f - remainder) * ho.pos.x + remainder * s.path[0].x;
@@ -809,6 +889,14 @@ void ingame::update() {
 			}		
 			
 		case SPINNER: {
+			if (check_cnt == 1) break;
+
+			auto& sp = spinners[ho.idx];
+			double decay = std::powf(0.9f, GetFrameTime() * 1000.0 * 16.6667);
+			sp.rpm = sp.rpm * decay + (1.0 - decay) * std::abs(sp.velocity) * 1000 / PI * 2 * 60.0f;
+
+			double max_accel_this_frame = sp.max_acceleration * GetFrameTime() * 1000.0f;
+
 			// check for disappearance
 			while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time) {
 				std::cout << "Missed Spinner at time " << ho.time << "\n";
@@ -824,13 +912,59 @@ void ingame::update() {
 		
 		}
 
+		if(check_cnt == 0) {
+			check_cnt++;
+			if (prev_on_object == on_object) {
+				if (ho.type == SLIDER) {
+					auto& s = sliders[ho.idx];
+					if (s.head_hit_checked) {
+						// no need to check for other Shit.
+						break;
+					}
+				}
+
+				on_object++;
+				goto update_object_jmp;
+			}
+		}
+		else {
+			// TODO : bugs here if the last object was a slider, rework this
+			if (on_object == prev_on_object + 1) {
+				if (ho.type == SLIDER) {
+					auto& s = sliders[ho.idx];
+					if (s.head_hit_checked) {
+						std::cout << "prevented notelock on slider head/tail, on_object was " << prev_on_object << " now " << on_object << "\n";
+						// miss old object
+						auto& ho = hit_objects[prev_on_object];
+						std::cout << "Missed Object at time " << ho.time << "\n";
+						misses++;
+						combo = 1;
+						hits.push_back({ ho.pos, draw_hit_time, MISS });
+						recalculate_acc();
+						break;
+					}
+				}
+				on_object--;
+			}
+				
+			else { // we hit something
+				std::cout << "prevented notelock, on_object was " << prev_on_object << " now " << on_object << "\n";
+				// miss old object
+				auto& ho = hit_objects[prev_on_object];
+				std::cout << "Missed Object at time " << ho.time << "\n";
+				misses++;
+				combo = 1;
+				hits.push_back({ ho.pos, draw_hit_time, MISS });
+				recalculate_acc();
+			}
+		}
+
 		break;
 	}
 	
 	while (visible_end < (int)hit_objects.size() && hit_objects[visible_end].time - approach_rate_milliseconds <= map_time) {
 		visible_end++;
 	}
-
 }
 
 void ingame::draw() {
@@ -909,7 +1043,7 @@ void ingame::draw() {
 			}
 			case 'P': {
 				for (size_t i = 1; i < s.path.size(); ++i) {
-					Rectangle dest = { s.path[i - 1].x, s.path[i - 1].y, circle_radius * 1.84f, 10 };
+					Rectangle dest = { s.path[i - 1].x, s.path[i - 1].y, circle_radius * 1.84f, slider_draw_resolution };
 					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
 					DrawTexturePro(atlas, tex[61], dest, origin, s.path[i - 1].z, white_alpha);
 				}
@@ -933,14 +1067,14 @@ void ingame::draw() {
 						std::swap(ang1, ang2);
 					}
 					for (float j = ang1; j < ang2; j += 5) {
-						Rectangle dest = { inter_x, inter_y, circle_radius * 1.84f, 10 };
+						Rectangle dest = { inter_x, inter_y, circle_radius * 1.84f, slider_draw_resolution };
 						Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
 
 						DrawTexturePro(atlas, tex[61], dest, origin, j, white_alpha);
 					}
 				}
 				for (size_t i = 1; i < s.path.size(); ++i) {
-					Rectangle dest = {s.path[i - 1].x, s.path[i - 1].y, circle_radius * 1.84f, 10 };
+					Rectangle dest = {s.path[i - 1].x, s.path[i - 1].y, circle_radius * 1.84f, slider_draw_resolution };
 					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
 					DrawTexturePro(atlas, tex[61], dest, origin, s.path[i - 1].z, white_alpha);
 				}
@@ -968,16 +1102,29 @@ void ingame::draw() {
 					
 			// draw reverse arrows
 			if (s.repeat_left > 1) {
-				if (s.repeat_left > 2) { // both ends
-					DrawTextEx(aller_r, "R", { s.path[0].x - MeasureTextEx(aller_r, "r", circle_radius * 1.2f, 0).x / 2.0f, s.path[0].y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
-					DrawTextEx(aller_r, "R", { s.path.back().x - MeasureTextEx(aller_r, "r", circle_radius * 1.2f, 0).x / 2.0f, s.path.back().y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
+				if (s.repeat_left > 2) {
+					// draw both
+					Rectangle dest = { ho.pos.x, ho.pos.y, circle_radius * 2.0f, circle_radius * 2.0f };
+					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
+					if (s.head_hit_checked) DrawTexturePro(atlas, tex[43], dest, origin, 270.0f + s.path.back().z, white_alpha);
+					dest = { s.path.back().x, s.path.back().y, circle_radius * 2.0f, circle_radius * 2.0f };
+
+					DrawTexturePro(atlas, tex[43], dest, origin, 90.0f + s.path[0].z, white_alpha);
 				}
 				else {
-					if (s.repeat_left % 2 == 1) {
-						DrawTextEx(aller_r, "R", { s.path.back().x - MeasureTextEx(aller_r, "r", circle_radius * 1.2f, 0).x / 2.0f, s.path.back().y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
+					if (s.repeat_count % 2 - s.repeat_left % 2 == 0) {
+						// draw at end
+							Rectangle dest = { s.path.back().x, s.path.back().y, circle_radius * 2.0f, circle_radius * 2.0f };
+							Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
+							DrawTexturePro(atlas, tex[43], dest, origin, 90.0f + s.path.back().z, white_alpha);
 					}
 					else {
-						DrawTextEx(aller_r, "R", { s.path[0].x - MeasureTextEx(aller_r, "r", circle_radius * 1.2f, 0).x / 2.0f, s.path[0].y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
+						// draw at start
+						if (s.head_hit_checked) {
+							Rectangle dest = { ho.pos.x, ho.pos.y, circle_radius * 2.0f, circle_radius * 2.0f };
+							Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
+							DrawTexturePro(atlas, tex[43], dest, origin, 270.0f + s.path[0].z, white_alpha);
+						}
 					}
 				}
 			}
@@ -985,7 +1132,7 @@ void ingame::draw() {
 			// draw slider ticks
 			int ind_st = 0;
 			for (auto& st : s.slider_ticks) {
-				if (bool(st.w) == true) continue; // already hit
+				if (st.w > 0.0f) continue; // already hit or reverse arrow
 				
 				if (st.z < map_time + approach_rate_milliseconds * 0.75f + ind_st * tick_draw_delay) {
 					DrawCircleV({ st.x, st.y }, circle_radius * 0.25f, white_alpha);

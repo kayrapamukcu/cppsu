@@ -10,8 +10,12 @@ Known  Bugs
    To do
 -----------
 
+# Refactor massive functions #
+# Make a split helper (Why didn't i do this earlier...) #
+
 db.cpp : update map imports & db reconstruction to update the screen (instead of not responding the whole time)
 ingame.cpp : improve bezier slider rendering, unnecessary draws on corners
+	     implement spinner logic
 song_select.cpp : add right click on maps for good gui delete
 		  add search function
 		  improve background rendering (no scaling just crop, parallax effects)
@@ -78,3 +82,7 @@ a2025.1201
 (*) Fixed short sliders' ends fucking up
 (*) Fixed sliderheads not disappearing after hit
 
+a2025.1205
+(+) Implemented reverse arrows - done with slider logic!
+(+) Implemented basic notelock protection
+(*) Fixed a slider ball tracking bug

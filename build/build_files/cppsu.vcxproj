@@ -544,6 +544,7 @@
     <ClCompile Include="..\..\src\result_screen.cpp" />
     <ClCompile Include="..\..\src\settings.cpp" />
     <ClCompile Include="..\..\src\song_select.cpp" />
+    <ClCompile Include="globals.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="raylib.vcxproj">

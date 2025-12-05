@@ -35,11 +35,21 @@ struct Slider {
 	Vector2 slider_ball_pos;
 	std::vector<Vector3> path;
 	std::vector<Vector3> corners;
-	std::vector<Vector4> slider_ticks; // x, y, time, hitresult
+	std::vector<Vector4> slider_ticks; // x, y, time, visible (0 = not drawn, 1 = drawn, 2 = reverse arrow)
 	uint32_t on_slider_tick;
 	uint32_t slider_end_check_time;
+	uint32_t total_hits;
+	uint32_t successful_hits;
 	bool tracked;
 	unsigned char slider_type; // 0 = linear, 1 = bezier, 2 = perfect
+};
+
+struct Spinner {
+	int rotation_requirement;
+	float current_rotation;
+	double max_acceleration;
+	float rpm;
+	double velocity;
 };
 
 struct HitObjectEntry {
@@ -62,14 +72,14 @@ struct TimingPoints {
 class ingame {
 public:
 	ingame(file_struct map);
-	void check_hit();
 	void update();
 	void draw();
-	inline void recalculate_acc();
 private:
+	inline void recalculate_acc();
+	void check_hit(bool notelock_check);
 	static constexpr float slider_body_hit_radius = 2.0f;
 	static constexpr float draw_hit_time = 0.4f;
-	float map_speed = 1.0f;
+	float map_speed = 0.25f;
 	Vector2 mouse_pos = { 0, 0 };
 	file_struct map_info;
 	float map_time = -1000.0f;
@@ -79,9 +89,11 @@ private:
 	int visible_end = 0;
 
 	float circle_radius = 200.0f;
-	float slider_resolution = 6.0f;
+	float slider_resolution = 4.0f;
+	float slider_draw_resolution = slider_resolution * 2.0f;
 	float accuracy = 100.0f;
 	float tick_draw_delay = 40.0f;
+	float spinner_rotation_ratio = 0.0f;
 
 	uint32_t score = 0;
 	uint32_t combo = 0;
@@ -111,6 +123,7 @@ private:
 	std::vector<TimingPoints> timing_points;
 	std::vector<HitObjectEntry> hit_objects;
 	std::vector<Slider> sliders;
+	std::vector<Spinner> spinners;
 	std::deque<HitObjectResult> hits;
 
 	bool key1_down = false;
