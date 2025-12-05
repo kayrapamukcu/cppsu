@@ -626,6 +626,7 @@ file_struct db::read_file_metadata(const std::filesystem::path& p) {
     to_int(line.substr(second_comma + 1, third_comma - (second_comma + 1)), time_first_ms);
     f.seekg(first_pos);
 
+
     while(std::getline(f, line)) {
         chomp_cr(line);
         if (line.empty()) continue;

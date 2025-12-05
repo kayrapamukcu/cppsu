@@ -123,6 +123,7 @@ int main()
 				ClearBackground(DARKGRAY);
 				
 				DrawTextExScaled(aller_r, "Welcome to cppsu!", { 32, 32 }, 36*screen_scale, 0, WHITE);
+				DrawTextExScaled(aller_r, "Press S to open the settings!", { 32, screen_height - 96 }, 24 * screen_scale, 0, WHITE);
 				DrawTextExScaled(aller_r, "Press M to switch to the song select screen!", { 32, screen_height - 64 }, 24*screen_scale, 0, WHITE);
 				DrawTextExScaled(aller_r, "Press N to import maps!", { 32, screen_height - 32 }, 24*screen_scale, 0, WHITE);
 				if (IsKeyPressed(KEY_M)) {

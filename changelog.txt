@@ -5,13 +5,17 @@ Known  Bugs
 (!!) Slider overdraw on red ticks
 (!!) Offset problem
 (!) Slider bodies are not transparent
+When importing maps in fullscreen the window doesnt show up
+Slider ticks after a reverse arrow dont show up
+Some slider reverse arrows look the wrong way
+After deleting a mapset, it tries to load the deleted mp3
 
 -----------
    To do
 -----------
 
-# Refactor massive functions #
-# Make a split helper (Why didn't i do this earlier...) #
+# Refactor massive functions 
+# Make a split helper (Why didn't i do this earlier...) 
 
 db.cpp : update map imports & db reconstruction to update the screen (instead of not responding the whole time)
 ingame.cpp : improve bezier slider rendering, unnecessary draws on corners
@@ -67,7 +71,7 @@ a2025.1126
 (*) Fixed crash after map end in some cases
 (*) Fixed annoying building bug (Dev)
 (*) Fixed different mp3s on the same mapset not being played on the song select screen
-(*) A few minor code changes
+(Code) A few minor code changes
 
 a2025.1128 
 
@@ -75,14 +79,19 @@ a2025.1128
 (+) Implemented slider logic
 
 a2025.1129
-(*) Got rid of most warnings in the code
+(Code) Got rid of most warnings in the code
 
 a2025.1201
 (+) Add setting to toggle sliderend rendering
 (*) Fixed short sliders' ends fucking up
 (*) Fixed sliderheads not disappearing after hit
 
-a2025.1205
+a2025.1205 (alpha 0.1.0) - huge milestone!
 (+) Implemented reverse arrows - done with slider logic!
-(+) Implemented basic notelock protection
+(+) Implemented spinner logic
+(+) Implemented score logic
+(*) Tweaked notelock a bit (behaves more like lazer)
 (*) Fixed a slider ball tracking bug
+(*) Fixed total map lengths
+(*) Fix sliderticks not disappearing after hit
+(Code) Added an "add hit" helper instead of a billion instances of misses++ combo = 0. 

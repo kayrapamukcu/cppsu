@@ -160,6 +160,13 @@ inline KeyboardKey key_2 = KEY_V;
 
 // Helper functions
 
+static inline std::string get_score_string(uint32_t score) {
+	std::string score_str = std::to_string(score);
+	auto n = score_str.length();
+	if (n < 8) score_str.insert(0, 8 - n, '0');
+	return score_str;
+}
+
 static inline bool roughly_equal(float a, float b) {
 	return std::fabs(a - b) <= 1.5f * playfield_scale;
 }

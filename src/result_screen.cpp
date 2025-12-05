@@ -6,9 +6,7 @@ result_screen::result_screen(results_struct results)
 {
 	this->results = results;
 	StopMusicStream(music);
-	score_str = std::to_string(results.score);
-	auto n = score_str.length();
-	if (n < 8) score_str.insert(0, 8 - n, '0');
+	score_str = get_score_string(results.score);
 
 	// can't use modern chrono functions because we're trying to support old operating systems
 
