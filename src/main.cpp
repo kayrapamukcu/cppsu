@@ -26,6 +26,19 @@ int main()
 	db::init();	
 	InitWindow((int)screen_width, (int)screen_height, "cppsu!");
 	InitAudioDevice();
+
+	// build sound effects
+
+	std::filesystem::path sfx_path = db::fs_path / "resources" / "sounds";
+
+	auto files_vect = db::get_files(sfx_path, ".wav");
+
+	for(const auto& f : files_vect) {
+		Sound sfx = LoadSound((sfx_path / f).string().c_str());
+		sound_effects[f] = sfx;
+		std::cout << std::format("Loaded SFX: {}\n", f);
+	}
+
 	SetExitKey(KEY_NULL);
 
 	aller_r = LoadFontEx("resources/aller.ttf", 72, NULL, 0);
@@ -60,7 +73,7 @@ int main()
 	screen_width = (float)GetScreenWidth();
 	screen_height = (float)GetScreenHeight();
 
-	SetTargetFPS(360);
+	// SetTargetFPS(360);
 
 	settings::init();
 	SetSoundPitch(welcome_sfx, 0.6f);

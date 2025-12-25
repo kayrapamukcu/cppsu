@@ -7,16 +7,19 @@
 #include <format>
 #include <fstream>
 #include <chrono>
+#include <unordered_map>
+#include <array>
+#include <iostream>
 
 // Enums and structs
 
-enum sample_sets {
+enum SAMPLE_SETS {
 	SAMPLE_SET_NORMAL,
 	SAMPLE_SET_SOFT,
 	SAMPLE_SET_DRUM
-};;
+};
 
-enum ranks {
+enum RANKS{
 	RANK_F,
 	RANK_D,
 	RANK_C,
@@ -70,7 +73,7 @@ struct file_struct {
 	uint16_t spinner_count = 0;
 
 	float stack_leniency = 0.5f;
-	sample_sets sample_set = SAMPLE_SET_NORMAL;
+	SAMPLE_SETS sample_set = SAMPLE_SET_NORMAL;
 
 	std::string source;
 	int mode = 0;
@@ -92,7 +95,7 @@ struct results_struct {
 	uint32_t katu = 0;
 
 	float accuracy = 0.0f;
-	ranks rank = RANK_F;
+	RANKS rank = RANK_F;
 };
 
 struct TexWithSrc {
@@ -115,11 +118,33 @@ inline float settings_mouse_scale = 1.0f;
 
 inline std::string player_name = "Player";
 
+// Audio stuff
+
+constexpr int MAX_AUDIO_CHANNELS = 24;
+
+inline std::unordered_map<std::string, Sound> sound_effects;
+
+inline int audio_on_channel = 0;
+inline std::array<Sound, MAX_AUDIO_CHANNELS> audio_channels; // Sound, is_playing
+
+static inline void play_sound_effect(const std::string& name, float volume = 1.0f) {
+	if (sound_effects.find(name) == sound_effects.end()) {
+		std::cout << "Tried to play sound effect that doesn't exist: " << name << "\n";
+		return;
+	}
+	UnloadSoundAlias(audio_channels[audio_on_channel]);
+	audio_channels[audio_on_channel] = LoadSoundAlias(sound_effects[name]);
+	SetSoundVolume(audio_channels[audio_on_channel], volume);
+	PlaySound(audio_channels[audio_on_channel]);
+	audio_on_channel = (audio_on_channel + 1) % MAX_AUDIO_CHANNELS;
+}
 
 // Global variables
 
+
+
 inline constexpr int DB_VERSION = 8;
-inline constexpr std::string_view CLIENT_VERSION = "a2025.1205";
+inline constexpr std::string_view CLIENT_VERSION = "a2025.1219";
 
 inline float screen_width_ratio = (float)screen_width / 1024.0f;
 inline float screen_height_ratio = (float)screen_height / 768.0f;
@@ -159,6 +184,35 @@ inline KeyboardKey key_1 = KEY_C;
 inline KeyboardKey key_2 = KEY_V;
 
 // Helper functions
+
+static inline void split_sv_fixed(std::string_view sv, std::string_view* out, int max_parts) {
+	int idx = 0;
+	size_t start = 0;
+	while (idx < max_parts) {
+		size_t pos = sv.find(',', start);
+		if (pos == std::string_view::npos) {
+			out[idx++] = sv.substr(start);
+			break;
+		}
+		out[idx++] = sv.substr(start, pos - start);
+		start = pos + 1;
+	}
+}
+
+static inline std::vector<std::string> split_string(const std::string& s, char delimiter) {
+	std::vector<std::string> tokens;
+	std::string token;
+	for (char c : s) {
+		if (c == delimiter) {
+			tokens.push_back(token);
+			token.clear();
+		} else {
+			token += c;
+		}
+	}
+	tokens.push_back(token);
+	return tokens;
+}
 
 static inline std::string get_score_string(uint32_t score) {
 	std::string score_str = std::to_string(score);

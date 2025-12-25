@@ -18,6 +18,12 @@ enum HitResult {
 	MISS
 };
 
+enum ComboResult {
+	C_NONE,
+	C_KATU,
+	C_GEKI
+};
+
 struct HitObjectResult {
 	Vector2 pos;
 	float time_remaining;
@@ -42,12 +48,12 @@ struct Slider {
 	uint32_t successful_hits;
 	bool tracked;
 	unsigned char slider_type; // 0 = linear, 1 = bezier, 2 = perfect
+	std::vector<int> hitsound_list;
 };
 
 struct Spinner {
 	int rotation_requirement;
 	float current_rotation;
-	double max_acceleration;
 	float rpm;
 	double velocity;
 	float rotation_count;
@@ -63,6 +69,8 @@ struct HitObjectEntry {
 	uint32_t color_idx;
 	HitObjectType type;
 	uint32_t combo_idx;
+	bool last_in_combo;
+	uint8_t snd; // bitmask for normal, whistle, finish, clap (0,1,2,3) and type (normal, soft, drum) (4, 5) (0 = normal, 1 = soft, 2 = drum)
 };
 
 struct TimingPoints {
@@ -70,6 +78,7 @@ struct TimingPoints {
 	float slider_velocity;
 	float ms_beat;
 	int volume;
+	uint8_t sample_set;
 };
 
 class ingame {
@@ -78,7 +87,7 @@ public:
 	void update();
 	void draw();
 private:
-	inline void object_hit(Vector2 pos, HitResult res, bool is_slider);
+	inline void object_hit(Vector2 pos, HitResult res, bool is_slider, bool last_in_combo, uint8_t snd);
 	inline void recalculate_score_acc(HitResult res);
 	void check_hit(bool notelock_check);
 	static constexpr float slider_body_hit_radius = 2.0f;
@@ -95,6 +104,8 @@ private:
 	int on_object = 0;
 	int visible_end = 0;
 
+	ComboResult last_combo_result = C_GEKI;
+
 	float circle_radius = 200.0f;
 	float slider_resolution = 4.0f;
 	float slider_draw_resolution = slider_resolution * 2.5f * screen_scale;
@@ -106,6 +117,7 @@ private:
 	uint32_t combo = 0;
 	uint32_t max_combo = 0;
 	uint32_t hit300s = 0, hit100s = 0, hit50s = 0, misses = 0;
+	uint32_t hitgekis = 0, hitkatus = 0;
 	std::array<Color, 8> hit_colors = { // Green, Blue, Red, Yellow defaults
 		Color{ 255, 192, 0, 255 },
 		Color{ 0, 202, 0, 255 },

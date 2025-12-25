@@ -42,7 +42,7 @@ void db::reconstruct_db() {
 
     
     for (auto& d : dirs) {
-        auto content = get_files(maps_path / d); // Get all .osu files in directory
+        auto content = get_files(maps_path / d, ".osu"); // Get all .osu files in directory
         database << "[SET]\t" << d;
 
 		bool ok = [](const std::string& s) { // check if string is integer
@@ -183,7 +183,7 @@ bool db::append_set_to_db(int set_id) {
         return false;
     }
     if (!std::filesystem::exists(set_path)) return false;
-    auto files = get_files(set_path);
+    auto files = get_files(set_path, ".osu");
     if (files.empty()) return false;
     file_struct head = read_file_metadata(set_path / files[0]);    
     std::ifstream dbin(dbpath);
@@ -372,7 +372,7 @@ bool db::remove_from_db(int method, int mapID, int setID) {
     }
     else if (method == 1) {
 		std::error_code ec;
-        auto content = get_files(set_path);
+        auto content = get_files(set_path, ".osu");
         for (auto& c : content) {
             if(read_file_metadata(set_path / c).beatmap_id == mapID) {
                 std::filesystem::remove(set_path / c, ec);
@@ -461,6 +461,10 @@ void db::read_db(std::vector<file_struct>& db) {
             size_t start = 0;
             size_t pos = content.find('\t', start);
             start = pos + 1;
+
+			// std::string_view[25] parts{};
+			// split_sv_fixed(content, parts, 25);
+
             while (index < 24) {
                 size_t pos = content.find('\t', start);
                 parts[index++] = content.substr(start, pos - start);
@@ -499,7 +503,7 @@ void db::read_db(std::vector<file_struct>& db) {
             to_int(parts[18], i_tmp); rec.slider_count = (uint16_t)i_tmp;
             to_int(parts[19], i_tmp); rec.spinner_count = (uint16_t)i_tmp;
 			to_float(parts[21], f_tmp); rec.stack_leniency = f_tmp;
-            to_int(parts[22], i_tmp); rec.sample_set = (sample_sets)(i_tmp);
+            to_int(parts[22], i_tmp); rec.sample_set = (SAMPLE_SETS)(i_tmp);
             to_int(parts[24], i_tmp); rec.mode = i_tmp;
 
             db.push_back(std::move(rec));

@@ -44,8 +44,8 @@ void result_screen::draw() {
 	DrawTextEx(aller_b, (std::to_string(results.hit100s) + "x").c_str(), {screen_width / 8.5f, screen_height / 2.3f}, 48 * screen_scale, 0, WHITE);
 	DrawTextEx(aller_b, (std::to_string(results.hit50s) + "x").c_str(), {screen_width / 8.5f, screen_height / 1.75f}, 48 * screen_scale, 0, WHITE);
 
-	DrawTextEx(aller_b, (std::to_string(results.geki) + "x").c_str(), { screen_width / 2.3f, screen_height / 2.3f }, 48 * screen_scale, 0, WHITE);
 	DrawTextEx(aller_b, (std::to_string(results.katu) + "x").c_str(), { screen_width / 2.3f, screen_height / 3.0f }, 48 * screen_scale, 0, WHITE);
+	DrawTextEx(aller_b, (std::to_string(results.geki) + "x").c_str(), { screen_width / 2.3f, screen_height / 2.3f }, 48 * screen_scale, 0, WHITE);
 	DrawTextEx(aller_b, (std::to_string(results.misses) + "x").c_str(), { screen_width / 2.3f, screen_height / 1.75f }, 48 * screen_scale, 0, WHITE);
 
 	// Draw header

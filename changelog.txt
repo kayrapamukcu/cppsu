@@ -7,7 +7,7 @@ Known  Bugs
 (!) Slider bodies are not transparent
 When importing maps in fullscreen the window doesnt show up
 Slider ticks after a reverse arrow dont show up
-Some slider reverse arrows look the wrong way
+
 After deleting a mapset, it tries to load the deleted mp3
 
 -----------
@@ -69,8 +69,8 @@ a2025.1126
 (*) Fixed database LastID bug
 (*) Fixed a map import bug
 (*) Fixed crash after map end in some cases
-(*) Fixed annoying building bug (Dev)
 (*) Fixed different mp3s on the same mapset not being played on the song select screen
+(Code) Fixed annoying building bug
 (Code) A few minor code changes
 
 a2025.1128 
@@ -86,7 +86,7 @@ a2025.1201
 (*) Fixed short sliders' ends fucking up
 (*) Fixed sliderheads not disappearing after hit
 
-a2025.1205 (alpha 0.1.0) - huge milestone!
+a2025.1205 (alpha 0.1.1) - huge milestone!
 (+) Implemented reverse arrows - done with slider logic!
 (+) Implemented spinner logic
 (+) Implemented score logic
@@ -94,4 +94,17 @@ a2025.1205 (alpha 0.1.0) - huge milestone!
 (*) Fixed a slider ball tracking bug
 (*) Fixed total map lengths
 (*) Fix sliderticks not disappearing after hit
-(Code) Added an "add hit" helper instead of a billion instances of misses++ combo = 0. 
+(*) Fix some slider reverse arrows looking the wrong way
+(Code) Added an "add hit" helper
+
+a2025.1211
+
+(~) Started work on hitsounds
+(*) Try fixing song offset issue
+
+a2025.1219
+
+(+) Add katu and gekis
+(~) More work on hitsounds
+
+a2025.1225
