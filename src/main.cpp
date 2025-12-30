@@ -31,7 +31,8 @@ int main()
 
 	std::filesystem::path sfx_path = db::fs_path / "resources" / "sounds";
 
-	auto files_vect = db::get_files(sfx_path, ".wav");
+
+	auto files_vect = db::get_files(sfx_path, std::vector<std::string>{".wav", ".mp3"});
 
 	for(const auto& f : files_vect) {
 		Sound sfx = LoadSound((sfx_path / f).string().c_str());
@@ -103,6 +104,13 @@ int main()
 		if (IsKeyPressed(KEY_F5)) {
 			game_state = MAIN_MENU;
 			db::reconstruct_db();
+		}
+
+		if (IsKeyPressed(KEY_F6)) {
+			settings::update_screen_resolution(screen_width + 16 * 5, screen_height + 9 * 5);
+		}
+		if (IsKeyPressed(KEY_F7)) {
+			settings::update_screen_resolution(screen_width - 16 * 5, screen_height - 9 * 5);
 		}
 
 		BeginDrawing();

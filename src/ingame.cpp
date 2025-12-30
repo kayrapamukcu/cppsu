@@ -139,6 +139,11 @@ ingame::ingame(file_struct map) {
 		hit_color_current = hit_color_current % hit_color_count;
 		float x, y;
 
+		// find correct timing point for this object
+		while (timing_point_idx + 1 < timing_points.size() && timing_points[timing_point_idx + 1].time <= time) {
+			timing_point_idx++;
+		}
+
 		switch (hot) {
 		case CIRCLE: {
 			to_float(parts[0], x);
@@ -148,7 +153,10 @@ ingame::ingame(file_struct map) {
 			y *= playfield_scale;
 			x += playfield_offset_x;
 			y += playfield_offset_y;
-			hit_objects.push_back(HitObjectEntry{ {x, y}, time, time, circle_cnt, hit_color_current, hot, combo_idx, false, (uint8_t)snd});
+
+			uint8_t volume = timing_points[timing_point_idx].volume;
+
+			hit_objects.push_back(HitObjectEntry{ {x, y}, time, time, circle_cnt, hit_color_current, hot, combo_idx, false, (uint8_t)snd, volume});
 			circle_cnt++;
 
 			
@@ -156,17 +164,14 @@ ingame::ingame(file_struct map) {
 		}
 		case SLIDER: {
 			int end_time;
-			// find correct timing point for this slider
-			while (timing_point_idx + 1 < timing_points.size() && timing_points[timing_point_idx + 1].time <= time) {
-				timing_point_idx++;
-			}
 			// parse additional fields
 			std::array<std::string_view, 6> slider_parts{};
 			index = 0;
-			while (index < 6 && sv.find(',', start) != std::string::npos) { // TODO : There's a bug here on older map versions
+			while (index < 6 /*&& sv.find(',', start) != std::string::npos*/) { // TODO : There's a bug here on older map versions
 				
 				size_t pos = sv.find(',', start);
 				slider_parts[index++] = sv.substr(start, pos - start);
+				if (pos == std::string::npos) break;
 				start = pos + 1;
 			}
 			int slider_repeat, slider_length;
@@ -207,12 +212,13 @@ ingame::ingame(file_struct map) {
 
 			// slider hitsounds
 
-			std::vector<int> hitsound_list;
+			std::vector<uint8_t> hitsound_list;
+			std::vector<uint8_t> hitsound_list_volume;
 			auto& slider_sounds = slider_parts[3];
 
 			if (slider_sounds.empty()) {
 				for (int i = 0; i < slider_repeat + 1; i++) {
-					hitsound_list.emplace_back(0);
+					hitsound_list.emplace_back(snd);
 				}
 			}
 
@@ -221,7 +227,9 @@ ingame::ingame(file_struct map) {
 				std::string_view num = slider_sounds.substr(0, delim);
 
 				if (!num.empty()) {
-					hitsound_list.emplace_back(num);
+					int n;
+					to_int(num, n);
+					hitsound_list.emplace_back(snd + n);
 				}
 
 				if (delim == std::string_view::npos) break;
@@ -435,15 +443,19 @@ ingame::ingame(file_struct map) {
 			}
 
 			int n = slider_ticks.size();
+			std::vector<int> reverse_arrow_indexes;
+
 			for (int i = 1; i < slider_repeat; ++i) {
 				// push reverse arrows as slider ticks
 				
 				if(i % 2 == 1) {
 					auto& t = path.back();
 					slider_ticks.push_back(Vector4{ t.x, t.y, time + i * (float)total_length, 2 });
+					reverse_arrow_indexes.push_back(slider_ticks.size() - 1);
 				}
 				else {
 					slider_ticks.push_back(Vector4{ x, y, time + i * (float)total_length, 2 });
+					reverse_arrow_indexes.push_back(slider_ticks.size() - 1);
 				}
 
 				int last_repeat_time = (int)(i * total_length);
@@ -460,8 +472,28 @@ ingame::ingame(file_struct map) {
 
 			uint32_t total_hits = (uint32_t)slider_ticks.size() + 2; // including head & tail
 
-			sliders.push_back(Slider{ slider_repeat, false, false, false, false, slider_length * playfield_scale, slider_repeat, {x, y}, std::move(path), std::move(corners), std::move(slider_ticks), 0, slider_end_check_time, total_hits, 0, false, shape});
-			hit_objects.push_back(HitObjectEntry{ {x, y}, time, end_time, slider_cnt, hit_color_current, hot, combo_idx, false, (uint8_t)snd });
+
+			// hitsound volumes
+			
+			hitsound_list_volume.emplace_back(timing_points[timing_point_idx].volume); // head volume
+
+			// check for different timing points for each reverse arrow
+			for (int i : reverse_arrow_indexes) {
+				while (timing_point_idx + 1 < timing_points.size() && timing_points[timing_point_idx + 1].time <= (slider_ticks[i].z - 0.1)) {
+					timing_point_idx++;
+				}
+
+				hitsound_list_volume.emplace_back(timing_points[timing_point_idx].volume);
+			}
+
+			while (timing_point_idx + 1 < timing_points.size() && timing_points[timing_point_idx + 1].time <= end_time) {
+				timing_point_idx++;
+			}
+
+			hitsound_list_volume.emplace_back(timing_points[timing_point_idx].volume); // tail volume
+
+			sliders.push_back(Slider{ slider_repeat, false, false, false, false, slider_length * playfield_scale, slider_repeat, {x, y}, std::move(path), std::move(corners), std::move(slider_ticks), 0, slider_end_check_time, total_hits, 0, false, shape, hitsound_list, hitsound_list_volume, 0});
+			hit_objects.push_back(HitObjectEntry{ {x, y}, time, end_time, slider_cnt, hit_color_current, hot, combo_idx, false, (uint8_t)snd, 100 });
 			slider_cnt++;
 
 			break;
@@ -473,8 +505,10 @@ ingame::ingame(file_struct map) {
 			int length = end_time - time;
 			int rotation_req = (int)((float)length / 1000.0f * spinner_rotation_ratio);
 
+			uint8_t volume = timing_points[timing_point_idx].volume;
+
 			spinners.push_back(Spinner{ rotation_req, 0.0f, 0.0f, 0.0, 0.0f, 0});
-			hit_objects.push_back(HitObjectEntry{ {256 * playfield_scale + playfield_offset_x, 192 * playfield_scale + playfield_offset_y}, time, end_time, spinner_cnt, hit_color_current, hot, combo_idx, false, (uint8_t)snd });
+			hit_objects.push_back(HitObjectEntry{ {256 * playfield_scale + playfield_offset_x, 192 * playfield_scale + playfield_offset_y}, time, end_time, spinner_cnt, hit_color_current, hot, combo_idx, false, (uint8_t)snd, volume});
 			spinner_cnt++;
 
 			break;
@@ -555,7 +589,7 @@ ingame::ingame(file_struct map) {
 		hit_objects.back().last_in_combo = true;
 	}
 
-	map_begin_time = -(float)GetTime() * 1000.0f * map_speed - 1000.0f;
+	map_begin_time = -(float)GetTime() * 1000.0f * map_speed - (1000.0f * map_speed);
 
 	hit_objects.shrink_to_fit();
 	sliders.shrink_to_fit();
@@ -590,10 +624,11 @@ ingame::ingame(file_struct map) {
     std::cout << "Map loaded: " << circle_cnt << " circles, " << slider_cnt << " sliders, " << spinner_cnt << " spinners.\n" << "Max combo: " << total_max_combo << "\n";
 }
 
-static void play_hitsound(uint8_t snd) {
+static void play_hitsound(uint8_t snd, uint8_t volume) {
 
 	std::string type;
 	switch ((snd >> 4)) {
+	case 0:
 	case 1:
 		type = "normal";
 		break;
@@ -605,42 +640,56 @@ static void play_hitsound(uint8_t snd) {
 		break;
 	}
 
-	play_sound_effect((type + "-hitnormal.wav").c_str(), 1.0f);
+	float vol = volume / 100.0f;
+
+	play_sound_effect((type + "-hitnormal.wav").c_str(), vol);
 	if (snd & 2) {
-		play_sound_effect((type + "-hitwhistle.wav").c_str(), 1.0f);
+		play_sound_effect((type + "-hitwhistle.wav").c_str(), vol);
 	}
 	if (snd & 4) {
-		play_sound_effect((type + "-hitfinish.wav").c_str(), 1.0f);
+		play_sound_effect((type + "-hitfinish.wav").c_str(), vol);
 	}
 	if (snd & 8) {
-		play_sound_effect((type + "-hitclap.wav").c_str(), 1.0f);
+		play_sound_effect((type + "-hitclap.wav").c_str(), vol);
 	}
 }
 
-void ingame::object_hit(Vector2 pos, HitResult res, bool is_slider, bool last_in_combo, uint8_t snd) {
+void ingame::object_hit(HitObjectEntry ho, HitResult res) { //, bool is_slider, bool last_in_combo, uint8_t snd) {
+
+	HitObjectType type = ho.type;
+	Vector2 pos = ho.pos;
+	uint8_t snd = ho.snd;
+	uint8_t snd_vol = ho.snd_vol;
+	if (type == SLIDER) {
+		auto& slider = sliders[ho.idx];
+		snd = slider.hitsound_list[slider.hitsound_index];
+		snd_vol = slider.hitsound_list_volume[slider.hitsound_index];
+		slider.hitsound_index++;
+	}
+
 	switch (res) {
 	case HIT_300:
 		hit300s++;
-		if (!is_slider)
+		if (type != SLIDER)
 			combo++;
 		hits.push_back({ pos, draw_hit_time, HIT_300 });
-		play_hitsound(snd);
+		play_hitsound(snd, ho.snd_vol);
 		break;
 	case HIT_100:
 		hit100s++;
-		if (!is_slider)
+		if (type != SLIDER)
 			combo++;
 		hits.push_back({ pos, draw_hit_time, HIT_100 });
 		if (last_combo_result == C_GEKI) last_combo_result = C_KATU;
-		play_hitsound(snd);
+		play_hitsound(snd, ho.snd_vol);
 		break;
 	case HIT_50:
 		hit50s++;
-		if (!is_slider)
+		if (type != SLIDER)
 			combo++;
 		hits.push_back({ pos, draw_hit_time, HIT_50 });
 		last_combo_result = C_NONE;
-		play_hitsound(snd);
+		play_hitsound(snd, ho.snd_vol);
 		break;
 	case MISS:
 		misses++;
@@ -650,9 +699,7 @@ void ingame::object_hit(Vector2 pos, HitResult res, bool is_slider, bool last_in
 		break;
 	}
 
-	
-
-	if (last_in_combo) {
+	if (ho.last_in_combo) {
 		switch (last_combo_result) {
 		case C_GEKI:
 			hitgekis++;
@@ -709,16 +756,16 @@ void ingame::check_hit(bool notelock_check) {
 	case CIRCLE: {
 		if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius * 0.94f)) {
 			if (delta <= hit_window_300) {
-				object_hit(ho.pos, HIT_300, false, ho.last_in_combo, ho.snd);
+				object_hit(ho, HIT_300);
 			}
 			else if (delta <= hit_window_100) {
-				object_hit(ho.pos, HIT_100, false, ho.last_in_combo, ho.snd);
+				object_hit(ho, HIT_100);
 			}
 			else if (delta <= hit_window_50) {
-				object_hit(ho.pos, HIT_50, false, ho.last_in_combo, ho.snd);
+				object_hit(ho, HIT_50);
 			}
 			else {
-				object_hit(ho.pos, MISS, false, ho.last_in_combo, ho.snd);
+				object_hit(ho, MISS);
 			}
 			on_object++;
 		}
@@ -734,6 +781,10 @@ void ingame::check_hit(bool notelock_check) {
 				s.head_hit_checked = true;
 				if (delta <= hit_window_50) {
 					// std::cout << "Slider head hit! " << map_time - ho.time << "!\n";
+					uint8_t snd = s.hitsound_list[s.hitsound_index];
+					uint8_t snd_vol = s.hitsound_list_volume[s.hitsound_index];
+					s.hitsound_index++;
+					play_hitsound(snd, snd_vol);
 					s.head_hit = true;
 					score += 30;
 					combo++;
@@ -763,10 +814,13 @@ void ingame::update() {
 		cntr = 0;
 	}*/
 
-	if (IsMusicStreamPlaying(music))
+	/* if (IsMusicStreamPlaying(music))
 		map_time = (float)GetMusicTimePlayed(music) * 1000.0f * map_speed; // + map_begin_time;
 	else
 		map_time = map_begin_time + (float)GetTime() * 1000.0f * map_speed;
+	*/
+
+	map_time = map_begin_time + (float)GetTime() * 1000.0f * map_speed;
 
 	mouse_pos_prev = mouse_pos;
 	mouse_pos = { (float)GetMouseX(), (float)GetMouseY() };
@@ -845,7 +899,8 @@ void ingame::update() {
 			SeekMusicStream(music, skip_target_time / 1000.0f);
 			UpdateMusicStream(music);
 
-			map_begin_time = skip_target_time; // - (float)GetTime() * 1000.0f * map_speed;
+			// map_begin_time = skip_target_time; // - (float)GetTime() * 1000.0f * map_speed;
+			map_begin_time = skip_target_time - (float)GetTime() * 1000.0f * map_speed;
 
 			skippable = false;
 			song_init = 2;
@@ -880,7 +935,7 @@ void ingame::update() {
 			// check for disappearance
 
 			while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time - hit_window_50) {
-				object_hit(ho.pos, MISS, false, ho.last_in_combo, ho.snd);
+				object_hit(ho, MISS);
 				on_object++;
 			}
 			break;
@@ -919,6 +974,10 @@ void ingame::update() {
 
 							if(s.slider_ticks[s.on_slider_tick].w == 2) { // reverse arrow
 								score += 30;
+								uint8_t snd = s.hitsound_list[s.hitsound_index];
+								uint8_t snd_vol = s.hitsound_list_volume[s.hitsound_index];
+								s.hitsound_index++;
+								play_hitsound(snd, snd_vol);
 							} else {
 								score += 10;
 							}
@@ -959,24 +1018,27 @@ void ingame::update() {
 
 				Vector2 end_pos;
 				if (s.repeat_count % 2 == 0) // even repeat count, end is at beginning
-					end_pos = ho.pos;
+					;// end_pos = ho.pos;
 				else // odd repeat count, end is at end
-					end_pos = { s.path.back().x, s.path.back().y };
+					// end_pos = { s.path.back().x, s.path.back().y };
+					ho.pos = { s.path.back().x, s.path.back().y };
+
+				
 
 				if (successful_hits >= s.total_hits) {
 					// std::cout << "Slider fully hit at time " << ho.time << "\n";
-					object_hit(end_pos, HIT_300, true, ho.last_in_combo, ho.snd);
+					object_hit(ho, HIT_300);
 				}
 				else if (successful_hits * 2.0f >= s.total_hits) {
 					// std::cout << "Slider 100 at time " << ho.time << "with " << successful_hits << " hits out of " << s.total_hits << "\n";
-					object_hit(end_pos, HIT_100, true, ho.last_in_combo, ho.snd);
+					object_hit(ho, HIT_100);
 				} else if (successful_hits > 0) {
 					// std::cout << "Slider 50 at time " << ho.time << "with " << successful_hits << " hits out of " << s.total_hits << "\n";
-					object_hit(end_pos, HIT_50, true, ho.last_in_combo, ho.snd);
+					object_hit(ho, HIT_50);
 				}
 				else {
 					// std::cout << "Slider miss at time " << ho.time << "with " << successful_hits << " hits out of " << s.total_hits << "\n";
-					object_hit(end_pos, MISS, true, ho.last_in_combo, ho.snd);
+					object_hit(ho, MISS);
 				}
 				on_object++;
 			}
@@ -1043,7 +1105,7 @@ void ingame::update() {
 				float angular_velocity_input = diff / dt;
 
 				float delta_rot = fabsf(angular_velocity_input) * dt / (PI);
-				sp.rotation_count += delta_rot;
+				sp.rotation_count += delta_rot * map_speed;
 
 				// smooth rpm display
 				double decay = pow(0.9, dt * 1000 / 16.66667);
@@ -1078,19 +1140,19 @@ void ingame::update() {
 
 				if (sp.rotation_count > sp.rotation_requirement + 1) {
 					// std::cout << "Spinner fully hit at time " << ho.time << "\n";
-					object_hit(ho.pos, HIT_300, false, ho.last_in_combo, ho.snd);
+					object_hit(ho, HIT_300);
 				}
 				else if (sp.rotation_count > sp.rotation_requirement) {
 					// std::cout << "Spinner 100 at time " << ho.time << "\n";
-					object_hit(ho.pos, HIT_100, false, ho.last_in_combo, ho.snd);
+					object_hit(ho, HIT_100);
 				}
-				else if (sp.rotation_count > sp.rotation_requirement - 1) {
+				else if (sp.rotation_count > sp.rotation_requirement - 1 && sp.rotation_count > 0.5) {
 					// std::cout << "Spinner 50 at time " << ho.time << "\n";
-					object_hit(ho.pos, HIT_50, false, ho.last_in_combo, ho.snd);
+					object_hit(ho, HIT_50);
 				}
 				else {
 					// std::cout << "Spinner at time " << ho.time << "\n";
-					object_hit(ho.pos, MISS, false, ho.last_in_combo, ho.snd);
+					object_hit(ho, MISS);
 				}
 				on_object++;
 			}
@@ -1129,7 +1191,7 @@ void ingame::update() {
 						// miss old object
 						auto& ho = hit_objects[prev_on_object];
 						// std::cout << "Missed Object at time " << ho.time << "\n";
-						object_hit(ho.pos, MISS, false, ho.last_in_combo, ho.snd);
+						object_hit(ho, MISS);
 						combo++;
 						break;
 					}
@@ -1142,7 +1204,7 @@ void ingame::update() {
 				// miss old object
 				auto& ho = hit_objects[prev_on_object];
 				// std::cout << "Missed Object at time " << ho.time << "\n";
-				object_hit(ho.pos, MISS, false, ho.last_in_combo, ho.snd);
+				object_hit(ho, MISS);
 				combo++;
 			}
 		}
@@ -1164,6 +1226,8 @@ void ingame::draw() {
 	}
 
 	// --- Draw objects ---
+
+	// Spinners first (they're above everything else)
 	for (int i = on_object; i < visible_end; i++) {
 		const auto& ho = hit_objects[i];
 		if (ho.type != SPINNER) continue;
@@ -1180,8 +1244,8 @@ void ingame::draw() {
 		DrawCircleV(Vector2{ x, y }, 16, { 255, 255, 255, alpha });
 
 		// draw spinner completion text
-		auto text_length = MeasureTextEx(aller_b, ("RPM: " + std::to_string((int)sp.rpm)).c_str(), 48.0f * playfield_scale, 1.0f).x;
-		DrawTextEx(aller_b, ("RPM: " + std::to_string((int)sp.rpm)).c_str(), { x - text_length / 2.0f, y + 96.0f * playfield_scale }, 48.0f * playfield_scale, 1.0f, { 255, 255, 255, alpha });
+		auto text_length = MeasureTextEx(aller_b, ("RPM: " + std::to_string((int)(sp.rpm * map_speed))).c_str(), 48.0f * playfield_scale, 1.0f).x;
+		DrawTextEx(aller_b, ("RPM: " + std::to_string((int)(sp.rpm * map_speed))).c_str(), { x - text_length / 2.0f, y + 96.0f * playfield_scale }, 48.0f * playfield_scale, 1.0f, { 255, 255, 255, alpha });
 
 		auto text_bonus_length = MeasureTextEx(aller_b, (std::to_string((int)sp.bonus_score)).c_str(), 64.0f * playfield_scale, 1.0f).x;
 		DrawTextEx(aller_b, (std::to_string((int)sp.bonus_score)).c_str(), { x - text_bonus_length / 2.0f, y + 24.0f * playfield_scale }, 64.0f * playfield_scale, 1.0f, { 255, 215, 0, alpha });

@@ -127,16 +127,23 @@ inline std::unordered_map<std::string, Sound> sound_effects;
 inline int audio_on_channel = 0;
 inline std::array<Sound, MAX_AUDIO_CHANNELS> audio_channels; // Sound, is_playing
 
-static inline void play_sound_effect(const std::string& name, float volume = 1.0f) {
+static inline void stop_sound_effect(int channel) {
+	StopSound(audio_channels[channel]);
+	// UnloadSoundAlias(audio_channels[channel]);
+}
+
+static inline int play_sound_effect(const std::string& name, float volume = 1.0f) {
 	if (sound_effects.find(name) == sound_effects.end()) {
 		std::cout << "Tried to play sound effect that doesn't exist: " << name << "\n";
-		return;
+		return -1;
 	}
+	int curr = audio_on_channel;
 	UnloadSoundAlias(audio_channels[audio_on_channel]);
 	audio_channels[audio_on_channel] = LoadSoundAlias(sound_effects[name]);
 	SetSoundVolume(audio_channels[audio_on_channel], volume);
 	PlaySound(audio_channels[audio_on_channel]);
 	audio_on_channel = (audio_on_channel + 1) % MAX_AUDIO_CHANNELS;
+	return curr;
 }
 
 // Global variables
@@ -144,7 +151,7 @@ static inline void play_sound_effect(const std::string& name, float volume = 1.0
 
 
 inline constexpr int DB_VERSION = 8;
-inline constexpr std::string_view CLIENT_VERSION = "a2025.1219";
+inline constexpr std::string_view CLIENT_VERSION = "a2025.1229";
 
 inline float screen_width_ratio = (float)screen_width / 1024.0f;
 inline float screen_height_ratio = (float)screen_height / 768.0f;

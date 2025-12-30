@@ -11,4 +11,5 @@ private:
 	results_struct results;
 	std::string score_str;
 	std::string played_text;
+	int channel_music;
 };

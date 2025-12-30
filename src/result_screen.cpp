@@ -23,6 +23,8 @@ result_screen::result_screen(results_struct results)
 	std::strftime(time_buf, sizeof(time_buf), "%d.%m.%Y %H:%M:%S", &local_tm);
 
 	played_text = "Played by " + results.player_name + " on " + std::string(time_buf) + ".";
+
+	channel_music = play_sound_effect("applause.mp3");
 }
 
 void result_screen::draw() {
@@ -30,9 +32,10 @@ void result_screen::draw() {
 	DrawTextureCompatPro(background, { 0,0, screen_width, screen_height }, WHITE);
 	
 	DrawRectangleGradientV(16 * screen_width_ratio, screen_height / 6.0f, screen_width / 1.7f, screen_height / 12.0f, Color{ 228, 206, 167, 255 }, Color{ 178, 157, 138, 255 });
-	DrawTextEx(aller_b, score_str.c_str(), {144, 128}, 72, 0, WHITE);
+	DrawTextExScaled(aller_b, score_str.c_str(), {144, 128}, 72, 0, WHITE);
 
-	DrawRectangleGradientV(16, screen_height / 3.8f, screen_width / 1.7f, screen_height / 1.92f, Color{ 53, 128, 219, 255 }, Color{ 35, 91, 165, 255 });
+
+	DrawRectangleGradientV(16 * screen_width_ratio, screen_height / 3.8f, screen_width / 1.7f, screen_height / 1.92f, Color{ 53, 128, 219, 255 }, Color{ 35, 91, 165, 255 });
 	DrawTextEx(aller_l, "Combo", { 18, screen_height / 1.54f }, 48, 0, WHITE);
 
 	DrawTextEx(aller_b, (std::to_string(results.max_combo) + "x").c_str(), { 28, screen_height / 1.44f }, 60, 0, WHITE);
@@ -58,6 +61,7 @@ void result_screen::draw() {
 
 void result_screen::update() {
 	if(IsKeyPressed(KEY_B)) {
+		stop_sound_effect(channel_music);
 		delete g_result_screen;
 		g_result_screen = nullptr;
 		song_select::init(true);

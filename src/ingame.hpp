@@ -48,7 +48,9 @@ struct Slider {
 	uint32_t successful_hits;
 	bool tracked;
 	unsigned char slider_type; // 0 = linear, 1 = bezier, 2 = perfect
-	std::vector<int> hitsound_list;
+	std::vector<uint8_t> hitsound_list;
+	std::vector<uint8_t> hitsound_list_volume;
+	int hitsound_index;
 };
 
 struct Spinner {
@@ -71,6 +73,7 @@ struct HitObjectEntry {
 	uint32_t combo_idx;
 	bool last_in_combo;
 	uint8_t snd; // bitmask for normal, whistle, finish, clap (0,1,2,3) and type (normal, soft, drum) (4, 5) (0 = normal, 1 = soft, 2 = drum)
+	uint8_t snd_vol;
 };
 
 struct TimingPoints {
@@ -87,12 +90,12 @@ public:
 	void update();
 	void draw();
 private:
-	inline void object_hit(Vector2 pos, HitResult res, bool is_slider, bool last_in_combo, uint8_t snd);
+	inline void object_hit(HitObjectEntry pos, HitResult res);
 	inline void recalculate_score_acc(HitResult res);
 	void check_hit(bool notelock_check);
 	static constexpr float slider_body_hit_radius = 2.0f;
 	static constexpr float draw_hit_time = 0.4f;
-	float map_speed = 1.0f;
+	float map_speed = 1.0f; 
 	float mod_score_multiplier = 1.0f;
 	float difficulty_multiplier = 1.0f;
 	Vector2 mouse_pos = { 0, 0 };

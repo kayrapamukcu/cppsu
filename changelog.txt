@@ -19,7 +19,6 @@ After deleting a mapset, it tries to load the deleted mp3
 
 db.cpp : update map imports & db reconstruction to update the screen (instead of not responding the whole time)
 ingame.cpp : improve bezier slider rendering, unnecessary draws on corners
-	     implement spinner logic
 song_select.cpp : add right click on maps for good gui delete
 		  add search function
 		  improve background rendering (no scaling just crop, parallax effects)
@@ -108,3 +107,28 @@ a2025.1219
 (~) More work on hitsounds
 
 a2025.1225
+
+(+) Hitsounds work now (no custom hitsounds yet)
+
+a2025.1229
+
+(*) Inverted song offset "fix"
+
+fix:
+map speed fucking up spinners
+slider hit sounds can fuck up at soft/drum/normal transitions
+
+add:
+FINISH RESULT SCREEN
+break combo sound 
+hp (toggleable)
+mods (with rate change)
+sound control
+offline profile
+osu api support
+Toggleable UR bar + keep UR data to show at end of play
+change key settings (grid)
+A good main menu
+menu transitions so it doesnt look shit.
+render 300s toggle
+record replay (toggleable for performance)
