@@ -7,7 +7,6 @@
 #include <string>
 #include <thread>
 #include <miniz.h>
-#include <mutex>
 #include <unordered_set>
 #include "globals.hpp"
 #include "song_select.hpp"

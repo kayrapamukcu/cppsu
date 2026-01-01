@@ -11,7 +11,86 @@
 #include <array>
 #include <iostream>
 
+// Texture atlas stuff
+
+enum class SPRITE : int {
+	Cursor,
+	HitCircle,
+	HitCircleOverlay,
+	ApproachCircle,
+	SliderBody,
+	ReverseArrow,
+	Default0,
+	Default1,
+	Default2,
+	Default3,
+	Default4,
+	Default5,
+	Default6,
+	Default7,
+	Default8,
+	Default9,
+	Result0,
+	Result50,
+	Result100,
+	Result100k,
+	Result300,
+	Result300k,
+	Result300g,
+	ButtonSkip,
+	PerfectComboText,
+	RankXHSmall,
+	RankXSmall,
+	RankSHSmall,
+	RankSSmall,
+	RankASmall,
+	RankBSmall,
+	RankCSmall,
+	RankDSmall,
+	TOTAL_COUNT
+};
+
+static constexpr struct {
+	const char* name;
+	SPRITE id;
+} atlas_map[] = {
+	{ "cursor.png",				SPRITE::Cursor },
+	{ "hitcircle.png",			SPRITE::HitCircle },
+	{ "hitcircleoverlay.png",	SPRITE::HitCircleOverlay },
+	{ "approachcircle.png",		SPRITE::ApproachCircle },
+	{ "sliderbody.png",			SPRITE::SliderBody },
+	{ "reversearrow.png",		SPRITE::ReverseArrow },
+	{ "score-0.png",			SPRITE::Default0 },
+	{ "score-1.png",			SPRITE::Default1 },
+	{ "score-2.png",			SPRITE::Default2 },
+	{ "score-3.png",			SPRITE::Default3 },
+	{ "score-4.png",			SPRITE::Default4 },
+	{ "score-5.png",			SPRITE::Default5 },
+	{ "score-6.png",			SPRITE::Default6 },
+	{ "score-7.png",			SPRITE::Default7 },
+	{ "score-8.png",			SPRITE::Default8 },
+	{ "score-9.png",			SPRITE::Default9 },
+	{ "hit0.png",				SPRITE::Result0 },
+	{ "hit50.png",				SPRITE::Result50 },
+	{ "hit100.png",				SPRITE::Result100 },
+	{ "hit100k.png",			SPRITE::Result100k },
+	{ "hit300.png",				SPRITE::Result300 },
+	{ "hit300k.png",			SPRITE::Result300k },
+	{ "hit300g.png",			SPRITE::Result300g },
+	{ "play-skip.png",			SPRITE::ButtonSkip },
+	{ "ranking-perfect.png",	SPRITE::PerfectComboText},
+	{ "ranking-XH-small.png",	SPRITE::RankXHSmall},
+	{ "ranking-X-small.png",	SPRITE::RankXSmall},
+	{ "ranking-SH-small.png",	SPRITE::RankSHSmall},
+	{ "ranking-S-small.png",	SPRITE::RankSSmall},
+	{ "ranking-A-small.png",	SPRITE::RankASmall},
+	{ "ranking-B-small.png",	SPRITE::RankBSmall},
+	{ "ranking-C-small.png",	SPRITE::RankCSmall},
+	{ "ranking-D-small.png",	SPRITE::RankDSmall}
+};
+
 // Enums and structs
+
 
 enum SAMPLE_SETS {
 	SAMPLE_SET_NORMAL,
@@ -96,6 +175,7 @@ struct results_struct {
 
 	float accuracy = 0.0f;
 	RANKS rank = RANK_F;
+	bool perfect_combo;
 };
 
 struct TexWithSrc {
@@ -112,9 +192,19 @@ struct Notice {
 
 inline float screen_width = 1024.0f;
 inline float screen_height = 768.0f;
+inline int screen_refresh_rate = 60.0f;
+
+inline float settings_mouse_scale = 1.0f;
+inline float settings_mouse_sens = 1.0f;
+inline float ur_bar_size = 1.0f;
 
 inline bool settings_sliderend_rendering = false;
-inline float settings_mouse_scale = 1.0f;
+inline bool settings_render_300s = true;
+inline bool settings_display_ur_bar = true;
+inline bool settings_ignore_map_colors = false;
+inline bool settings_render_fps_ms = true;
+inline bool settings_raw_input = false;
+
 
 inline std::string player_name = "Player";
 
@@ -148,13 +238,13 @@ static inline int play_sound_effect(const std::string& name, float volume = 1.0f
 
 // Global variables
 
-
-
 inline constexpr int DB_VERSION = 8;
-inline constexpr std::string_view CLIENT_VERSION = "a2025.1229";
+inline constexpr std::string_view CLIENT_VERSION = "a2025.1231";
 
 inline float screen_width_ratio = (float)screen_width / 1024.0f;
 inline float screen_height_ratio = (float)screen_height / 768.0f;
+
+
 
 inline float screen_scale = std::min(screen_width_ratio, screen_height_ratio);
 
@@ -167,7 +257,11 @@ inline TexWithSrc background;
 inline Texture song_select_top_bar;
 inline Texture atlas;
 
-inline std::vector<Rectangle> tex;
+inline Vector2 cursor;
+
+// inline std::vector<Rectangle> tex;
+
+inline std::array<Rectangle, (int)SPRITE::TOTAL_COUNT> tex;
 
 inline float playfield_scale = screen_height / 480.0f;
 inline float playfield_offset_x = (screen_width - 512.0f * playfield_scale) / 2.0f;
@@ -189,6 +283,10 @@ inline bool key2_down = false;
 
 inline KeyboardKey key_1 = KEY_C;
 inline KeyboardKey key_2 = KEY_V;
+
+inline Color c_hit_yellow = { 218, 174, 70, 255 };
+inline Color c_hit_green = { 87, 227, 19, 255 };
+inline Color c_hit_blue = { 50, 188, 231, 255 };
 
 // Helper functions
 

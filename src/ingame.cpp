@@ -597,7 +597,7 @@ ingame::ingame(file_struct map) {
 	map_first_object_time = hit_objects[0].time;
 
 	// calculate max TOTAL COMBO
-	int total_max_combo = 0;
+	
 	for (auto& ho : hit_objects) {
 		switch (ho.type) {
 		case CIRCLE:
@@ -672,14 +672,28 @@ void ingame::object_hit(HitObjectEntry ho, HitResult res) { //, bool is_slider, 
 		hit300s++;
 		if (type != SLIDER)
 			combo++;
-		hits.push_back({ pos, draw_hit_time, HIT_300 });
+		if (!ho.last_in_combo)
+			hits.push_back({ pos, draw_hit_time, HIT_300 });
+		else
+			if (last_combo_result == C_KATU)
+				hits.push_back({ pos, draw_hit_time, HIT_300K });
+			else if (last_combo_result == C_GEKI)
+				hits.push_back({ pos, draw_hit_time, HIT_300G });
+			else
+				hits.push_back({ pos, draw_hit_time, HIT_300 });
 		play_hitsound(snd, ho.snd_vol);
 		break;
 	case HIT_100:
 		hit100s++;
 		if (type != SLIDER)
 			combo++;
-		hits.push_back({ pos, draw_hit_time, HIT_100 });
+		if (!ho.last_in_combo)
+			hits.push_back({ pos, draw_hit_time, HIT_100 }); 
+		else 
+			if (last_combo_result != C_NONE)
+				hits.push_back({ pos, draw_hit_time, HIT_100K });
+			else
+				hits.push_back({ pos, draw_hit_time, HIT_100 });
 		if (last_combo_result == C_GEKI) last_combo_result = C_KATU;
 		play_hitsound(snd, ho.snd_vol);
 		break;
@@ -693,7 +707,7 @@ void ingame::object_hit(HitObjectEntry ho, HitResult res) { //, bool is_slider, 
 		break;
 	case MISS:
 		misses++;
-		combo = 0;
+		combo_break();
 		last_combo_result = C_NONE;
 		hits.push_back({ pos, draw_hit_time, MISS });
 		break;
@@ -747,9 +761,27 @@ void ingame::recalculate_score_acc(HitResult res) {
 	score += (uint32_t)(hit_result_score * (1.0f + (std::max(combo - 1, 0U) * difficulty_multiplier * mod_score_multiplier / 25.0f)));
 }
 
+void ingame::combo_break() {
+	if (combo >= 20)
+		play_sound_effect("combobreak.mp3");
+	combo = 0;
+}
+
+void ingame::add_unstable_rate_data(float ur) {
+	ur_per_note.emplace_back(ur); // for end of map
+
+	Color c = c_hit_yellow;
+	if (std::abs(ur) <= hit_window_300) c = c_hit_blue;
+	else if (std::abs(ur) <= hit_window_100) c = c_hit_green;
+
+	ur_bar_info.push_back(std::tuple<Color, float, float>(c, ur, 10.0f)); // for drawing the UR bar
+}
+
 void ingame::check_hit(bool notelock_check) {
 	auto& ho = hit_objects[on_object];
-	float delta = std::abs(map_time - ho.time);
+	float ur = map_time - ho.time;
+	float delta = std::abs(ur);
+
 	if (delta > 360) return; // way too early
 	if (notelock_check && delta > hit_window_300) return; // too early for hit
 	switch (ho.type) {
@@ -757,12 +789,15 @@ void ingame::check_hit(bool notelock_check) {
 		if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius * 0.94f)) {
 			if (delta <= hit_window_300) {
 				object_hit(ho, HIT_300);
+				add_unstable_rate_data(ur);
 			}
 			else if (delta <= hit_window_100) {
 				object_hit(ho, HIT_100);
+				add_unstable_rate_data(ur);
 			}
 			else if (delta <= hit_window_50) {
 				object_hit(ho, HIT_50);
+				add_unstable_rate_data(ur);
 			}
 			else {
 				object_hit(ho, MISS);
@@ -780,7 +815,6 @@ void ingame::check_hit(bool notelock_check) {
 			if (CheckCollisionPointCircle(mouse_pos, ho.pos, circle_radius * 0.94f)) {
 				s.head_hit_checked = true;
 				if (delta <= hit_window_50) {
-					// std::cout << "Slider head hit! " << map_time - ho.time << "!\n";
 					uint8_t snd = s.hitsound_list[s.hitsound_index];
 					uint8_t snd_vol = s.hitsound_list_volume[s.hitsound_index];
 					s.hitsound_index++;
@@ -788,12 +822,12 @@ void ingame::check_hit(bool notelock_check) {
 					s.head_hit = true;
 					score += 30;
 					combo++;
+					add_unstable_rate_data(ur);
 					if (max_combo < combo) max_combo = combo;
 				}
 				else {
-					// std::cout << "Slider head miss! with offset " << map_time - ho.time << "!\n";
 					if (max_combo < combo) max_combo = combo;
-					combo = 0;
+					combo_break();
 					s.head_hit_checked = true;
 				}
 			}
@@ -804,21 +838,6 @@ void ingame::check_hit(bool notelock_check) {
 }
 
 void ingame::update() {
-	
-	/*static int cntr = 0;
-	cntr++;
-
-	if (cntr == 30) {
-		std::cout << GetMusicTimePlayed(music) * 1000.0f << " ms played\n";
-		std::cout << "Current map time: " << map_time << " ms\n";
-		cntr = 0;
-	}*/
-
-	/* if (IsMusicStreamPlaying(music))
-		map_time = (float)GetMusicTimePlayed(music) * 1000.0f * map_speed; // + map_begin_time;
-	else
-		map_time = map_begin_time + (float)GetTime() * 1000.0f * map_speed;
-	*/
 
 	map_time = map_begin_time + (float)GetTime() * 1000.0f * map_speed;
 
@@ -846,21 +865,26 @@ void ingame::update() {
 			res.misses = misses;
 			res.geki = hitgekis;
 			res.katu = hitkatus;
+			if (total_max_combo == max_combo)
+				res.perfect_combo = true;
+			else
+				res.perfect_combo = false;
 			// calculate rank
 			RANKS rank = RANK_D;
 			int all_objects = hit300s + hit100s + hit50s + misses;
+
 			if (accuracy == 100.0f) rank = RANK_X;
-			if (hit300s >= all_objects * 0.9) {
+			else if (hit300s >= all_objects * 0.9) {
 				if (misses == 0 && hit50s <= all_objects * 0.01f) rank = RANK_S;
 				else rank = RANK_A;
 			}
 			else if (hit300s >= all_objects * 0.8f) {
 				if (misses == 0) rank = RANK_A;
-				rank = RANK_B;
+				else rank = RANK_B;
 			}
 			else if (hit300s >= all_objects * 0.6f) {
 				if (misses == 0 && hit300s >= all_objects * 0.7f) rank = RANK_B;
-				rank = RANK_C;
+				else rank = RANK_C;
 			}
 			res.rank = rank;
 
@@ -947,7 +971,7 @@ void ingame::update() {
 				if (ho.time + hit_window_50 < map_time) {
 					// std::cout << "Slider head miss at time " << ho.time << "\n";
 					s.head_hit_checked = true;
-					combo = 0;
+					combo_break();
 				}
 			}
 
@@ -988,7 +1012,7 @@ void ingame::update() {
 						}
 					}
 					// std::cout << "Slider tick miss at time " << s.slider_ticks[s.on_slider_tick].z << "\n";
-					combo = 0;
+					combo_break();
 					slider_tick_check_continue:
 					s.on_slider_tick++;
 				}
@@ -1016,7 +1040,7 @@ void ingame::update() {
 				if (s.head_hit) successful_hits++;
 				if (s.tail_hit) successful_hits++;
 
-				Vector2 end_pos;
+				// Vector2 end_pos;
 				if (s.repeat_count % 2 == 0) // even repeat count, end is at beginning
 					;// end_pos = ho.pos;
 				else // odd repeat count, end is at end
@@ -1222,7 +1246,7 @@ void ingame::draw() {
 	DrawRectangleLinesF(playfield_offset_x, playfield_offset_y, playfield_scale * 512.0f, playfield_scale * 384.0f, WHITE);
 
 	if (skippable) {
-		DrawTexturePro(atlas, tex[28], { screen_width - 1.25f * screen_height / 4, screen_height - screen_height / 4, 1.25f * screen_height / 4, screen_height / 4 }, { 0,0 }, 0.0f, WHITE);
+		DrawTexturePro(atlas, tex[(int)SPRITE::ButtonSkip], {screen_width - 1.25f * screen_height / 4, screen_height - screen_height / 4, 1.25f * screen_height / 4, screen_height / 4}, {0,0}, 0.0f, WHITE);
 	}
 
 	// --- Draw objects ---
@@ -1264,22 +1288,22 @@ void ingame::draw() {
 
 		switch (ho.type) {
 		case CIRCLE: {
-			DrawTexturePro(atlas, tex[0], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
-			DrawTexturePro(atlas, tex[21], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, white_alpha);
-			DrawTexturePro(atlas, tex[20], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2 }, { 0,0 }, 0.0f, circle_color);
+			DrawTexturePro(atlas, tex[(int)SPRITE::ApproachCircle], {ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2}, {0,0}, 0.0f, color);
+			DrawTexturePro(atlas, tex[(int)SPRITE::HitCircleOverlay], {ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2}, {0,0}, 0.0f, white_alpha);
+			DrawTexturePro(atlas, tex[(int)SPRITE::HitCircle], {ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2}, {0,0}, 0.0f, circle_color);
 			DrawTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), { ho.pos.x - MeasureTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), circle_radius * 1.2f, 0).x / 2.0f, ho.pos.y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE);
 			break;
 		}
 		case SLIDER: {
 			auto& s = sliders[ho.idx];
-			DrawTexturePro(atlas, tex[0], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
+			DrawTexturePro(atlas, tex[(int)SPRITE::ApproachCircle], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
 			
 			// todo : optimize by having a circle texture instead of doing this
 			for (float j = 0; j < 180; j += 10) {
 				Rectangle dest = { ho.pos.x, ho.pos.y, circle_radius * 1.84f, slider_draw_resolution };
 				Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
 
-				DrawTexturePro(atlas, tex[61], dest, origin, j, white_alpha);
+				DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, j, white_alpha);
 			}
 
 			if(!settings_sliderend_rendering) {
@@ -1288,7 +1312,7 @@ void ingame::draw() {
 					Rectangle dest = { s.path.back().x, s.path.back().y, circle_radius * 1.84f, slider_draw_resolution };
 					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
 
-					DrawTexturePro(atlas, tex[61], dest, origin, j, white_alpha);
+					DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, j, white_alpha);
 				}
 			}
 
@@ -1298,14 +1322,14 @@ void ingame::draw() {
 				Rectangle dest = { (ho.pos.x + s.path[0].x) / 2, (ho.pos.y + s.path[0].y) / 2, circle_radius * 1.84f, s.length };
 				Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
 
-				DrawTexturePro(atlas, tex[61], dest, origin, s.path[0].z, white_alpha);
+				DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, s.path[0].z, white_alpha);
 				break;
 			}
 			case 'P': {
 				for (size_t i = 1; i < s.path.size(); ++i) {
 					Rectangle dest = { s.path[i - 1].x, s.path[i - 1].y, circle_radius * 1.84f, slider_draw_resolution };
 					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-					DrawTexturePro(atlas, tex[61], dest, origin, s.path[i - 1].z, white_alpha);
+					DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, s.path[i - 1].z, white_alpha);
 				}
 
 				break;
@@ -1330,13 +1354,13 @@ void ingame::draw() {
 						Rectangle dest = { inter_x, inter_y, circle_radius * 1.84f, slider_draw_resolution };
 						Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
 
-						DrawTexturePro(atlas, tex[61], dest, origin, j, white_alpha);
+						DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, j, white_alpha);
 					}
 				}
 				for (size_t i = 1; i < s.path.size(); ++i) {
 					Rectangle dest = {s.path[i - 1].x, s.path[i - 1].y, circle_radius * 1.84f, slider_draw_resolution };
 					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-					DrawTexturePro(atlas, tex[61], dest, origin, s.path[i - 1].z, white_alpha);
+					DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, s.path[i - 1].z, white_alpha);
 				}
 
 				break;
@@ -1350,14 +1374,14 @@ void ingame::draw() {
 
 			
 			if (!s.head_hit_checked) {
-				DrawTexturePro(atlas, tex[21], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, white_alpha);
-				DrawTexturePro(atlas, tex[20], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, circle_color);
+				DrawTexturePro(atlas, tex[(int)SPRITE::HitCircleOverlay], { ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, white_alpha);
+				DrawTexturePro(atlas, tex[(int)SPRITE::HitCircle], {ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f}, {0,0}, 0.0f, circle_color);
 				DrawTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), { ho.pos.x - MeasureTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), circle_radius * 1.2f, 0).x / 2.0f, ho.pos.y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, WHITE); // TODO : revamp text rendering for sliders
 			}
 
 			if (settings_sliderend_rendering) {
-				DrawTexturePro(atlas, tex[21], { s.path.back().x - circle_radius, s.path.back().y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, white_alpha);
-				DrawTexturePro(atlas, tex[20], { s.path.back().x - circle_radius, s.path.back().y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, circle_color);
+				DrawTexturePro(atlas, tex[(int)SPRITE::HitCircleOverlay], { s.path.back().x - circle_radius, s.path.back().y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, white_alpha);
+				DrawTexturePro(atlas, tex[(int)SPRITE::HitCircle], { s.path.back().x - circle_radius, s.path.back().y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, circle_color);
 			}
 					
 			// draw reverse arrows
@@ -1375,24 +1399,24 @@ void ingame::draw() {
 					// draw both
 					Rectangle dest = { ho.pos.x, ho.pos.y, circle_radius * 2.0f, circle_radius * 2.0f };
 					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-					if (s.head_hit_checked) DrawTexturePro(atlas, tex[43], dest, origin, 270.0f + s.path.back().z, white_alpha);
+					if (s.head_hit_checked) DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, 270.0f + s.path.back().z, white_alpha);
 					dest = { s.path.back().x, s.path.back().y, circle_radius * 2.0f, circle_radius * 2.0f };
 
-					DrawTexturePro(atlas, tex[43], dest, origin, added_angle + s.path[0].z, white_alpha);
+					DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path[0].z, white_alpha);
 				}
 				else {
 					if (s.repeat_count % 2 - s.repeat_left % 2 == 0) {
 						// draw at end
 							Rectangle dest = { s.path.back().x, s.path.back().y, circle_radius * 2.0f, circle_radius * 2.0f };
 							Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-							DrawTexturePro(atlas, tex[43], dest, origin, added_angle + s.path.back().z, white_alpha);
+							DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path.back().z, white_alpha);
 					}
 					else {
 						// draw at start
 						if (s.head_hit_checked) {
 							Rectangle dest = { ho.pos.x, ho.pos.y, circle_radius * 2.0f, circle_radius * 2.0f };
 							Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-							DrawTexturePro(atlas, tex[43], dest, origin, added_angle + s.path[0].z, white_alpha);
+							DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path[0].z, white_alpha);
 						}
 					}
 				}
@@ -1415,7 +1439,7 @@ void ingame::draw() {
 			// draw ball mouse radius
 			if (ho.time <= map_time) {
 				if (s.tracked) {
-					DrawTexturePro(atlas, tex[0], { s.slider_ball_pos.x - circle_radius * slider_body_hit_radius, s.slider_ball_pos.y - circle_radius * slider_body_hit_radius, circle_radius * slider_body_hit_radius * 2.0f, circle_radius * slider_body_hit_radius * 2.0f }, { 0,0 }, 0.0f, YELLOW);
+					DrawTexturePro(atlas, tex[(int)SPRITE::ApproachCircle], { s.slider_ball_pos.x - circle_radius * slider_body_hit_radius, s.slider_ball_pos.y - circle_radius * slider_body_hit_radius, circle_radius * slider_body_hit_radius * 2.0f, circle_radius * slider_body_hit_radius * 2.0f }, { 0,0 }, 0.0f, YELLOW);
 				}
 			}
 			break;
@@ -1430,20 +1454,41 @@ void ingame::draw() {
 	float frame_time = GetFrameTime();
 	for (auto it = hits.begin(); it != hits.end(); ) {
 		auto& h = *it;
+		if (!settings_render_300s && (h.result == HIT_300 || h.result == HIT_300G || h.result == HIT_300K)) {
+			it = hits.erase(it);
+			continue;
+		}
+		Rectangle t = tex[(int)SPRITE::Result300];
 		switch (h.result) {
-		case HIT_300:
-			DrawTextEx(aller_r, "300", { h.pos.x - MeasureTextEx(aller_r, "300", 24, 0).x / 2.0f, h.pos.y }, 24, 0, BLUE);
+		case HIT_300K:
+			t = tex[(int)SPRITE::Result300k];
+			break;
+		case HIT_300G:
+			t = tex[(int)SPRITE::Result300g];
+			break;
+		case HIT_100K:
+			t = tex[(int)SPRITE::Result100k];
 			break;
 		case HIT_100:
-			DrawTextEx(aller_r, "100", { h.pos.x - MeasureTextEx(aller_r, "100", 24, 0).x / 2.0f, h.pos.y }, 24, 0, GREEN);
+			t = tex[(int)SPRITE::Result100];
 			break;
 		case HIT_50:
-			DrawTextEx(aller_r, "50", { h.pos.x - MeasureTextEx(aller_r, "50", 24, 0).x / 2.0f, h.pos.y }, 24, 0, YELLOW);
+			t = tex[(int)SPRITE::Result50];
 			break;
 		case MISS:
-			DrawTextEx(aller_r, "Miss!", { h.pos.x - MeasureTextEx(aller_r, "Miss!", 24, 0).x / 2.0f, h.pos.y }, 24, 0, RED);
+			t = tex[(int)SPRITE::Result0];
 			break;
 		}
+		
+		
+		float time_factor = 0.7f + ((draw_hit_time - h.time_remaining) / draw_hit_time) / 3.0f;
+
+		float render_width = t.width * time_factor * circle_radius / 72.96f; // 36.48 (cs4 radius) * 2
+		float render_height = t.height * time_factor * circle_radius / 72.96f;
+
+		uint8_t opacity = uint8_t(2.0f * 255.0f / draw_hit_time * std::min(h.time_remaining, draw_hit_time / 2.0f));
+
+		DrawTexturePro(atlas, t, { h.pos.x - render_width / 2.0f, h.pos.y - render_height / 2.0f, render_width, render_height}, { 0,0 }, 0.0f, { 255, 255, 255, opacity});
 
 		h.time_remaining -= frame_time;
 
@@ -1459,10 +1504,42 @@ void ingame::draw() {
 	DrawTextEx(aller_r, (std::to_string(combo) + "x").c_str(), { 0, (screen_height - screen_height / 16.0f) }, 48 * screen_height_ratio, 0, WHITE);
 
 	std::string score_str = get_score_string(score);
-	float score_text_length = MeasureTextEx(aller_r, score_str.c_str(), 64.0f * screen_width_ratio, 0).x;
-	DrawTextEx(aller_r, score_str.c_str(), { (screen_width - score_text_length), 0 }, 64.0f * screen_width_ratio, 0, WHITE);
+	float score_text_length = MeasureTextEx(aller_r, score_str.c_str(), 64.0f * screen_height_ratio, 0).x;
+	DrawTextEx(aller_r, score_str.c_str(), { (screen_width - score_text_length), 0 }, 64.0f * screen_height_ratio, 0, WHITE);
 	
 	std::string acc_str = std::to_string(accuracy).substr(0, 5) + "%";
-	float acc_text_length = MeasureTextEx(aller_r, acc_str.c_str(), 48.0f * screen_width_ratio, 0).x;
-	DrawTextEx(aller_r, acc_str.c_str(), { (screen_width - acc_text_length), 48 * screen_width_ratio }, 48.0f * screen_width_ratio, 0, WHITE);
+	float acc_text_length = MeasureTextEx(aller_r, acc_str.c_str(), 48.0f * screen_height_ratio, 0).x;
+	DrawTextEx(aller_r, acc_str.c_str(), { (screen_width - acc_text_length), 48 * screen_height_ratio }, 48.0f * screen_height_ratio, 0, WHITE);
+
+	// UR bar
+
+	float scw_h = screen_width / 2;
+	float mult_w = ur_bar_size * screen_width_ratio;
+	float mult_h = ur_bar_size * screen_height_ratio;
+
+	DrawRectangleV({ scw_h - (hit_window_50 * mult_w), screen_height - (20 * mult_h) }, { hit_window_50 * mult_w * 2, 8 * mult_h }, c_hit_yellow);
+	DrawRectangleV({ scw_h - (hit_window_100 * mult_w), screen_height - (20 * mult_h) }, { hit_window_100 * mult_w * 2, 8 * mult_h }, c_hit_green);
+	DrawRectangleV({ scw_h - (hit_window_300 * mult_w), screen_height - (20 * mult_h) }, { hit_window_300 * mult_w * 2, 8 * mult_h }, c_hit_blue);
+	DrawRectangleV({ scw_h, screen_height - (32 * mult_h) }, { 4 * mult_w, 32 * mult_h }, WHITE);
+	
+	for (auto it = ur_bar_info.begin(); it != ur_bar_info.end(); ) {
+		auto& u = *it;
+		
+		Color c = std::get<0>(u);
+		float offset = std::get<1>(u);
+		auto& time_remaining = std::get<2>(u);
+		time_remaining -= frame_time;
+
+		uint8_t opacity = (uint8_t)std::min(255.0f, time_remaining * 50.0f) / 2;
+		
+		DrawRectangleV({ scw_h + offset * mult_w, screen_height - (32 * mult_h) }, { 2 * mult_w, 32 * mult_h }, { c.r, c.g, c.b, opacity });
+
+		if (time_remaining <= 0.0f) {
+			it = ur_bar_info.erase(it);
+		}
+		else {
+			++it;
+		}
+	}
+	
 }

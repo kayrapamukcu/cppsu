@@ -13,7 +13,10 @@ enum HitObjectType {
 
 enum HitResult {
 	HIT_300,
+	HIT_300G,
+	HIT_300K,
 	HIT_100,
+	HIT_100K,
 	HIT_50,
 	MISS
 };
@@ -92,8 +95,11 @@ public:
 private:
 	inline void object_hit(HitObjectEntry pos, HitResult res);
 	inline void recalculate_score_acc(HitResult res);
+	inline void combo_break();
+	inline void add_unstable_rate_data(float ur);
 	void check_hit(bool notelock_check);
-	static constexpr float slider_body_hit_radius = 2.0f;
+
+	static constexpr float slider_body_hit_radius = 2.2f;
 	static constexpr float draw_hit_time = 0.4f;
 	float map_speed = 1.0f; 
 	float mod_score_multiplier = 1.0f;
@@ -106,6 +112,10 @@ private:
 	int map_first_object_time = 0;
 	int on_object = 0;
 	int visible_end = 0;
+	int total_max_combo = 0;
+
+	std::vector<float> ur_per_note;
+	std::deque<std::tuple<Color, float, float>> ur_bar_info; // color, offset, time remaining
 
 	ComboResult last_combo_result = C_GEKI;
 

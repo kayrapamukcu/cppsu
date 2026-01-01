@@ -17,6 +17,8 @@
 #include "result_screen.hpp"
 #include "settings.hpp"
 
+#include <GLFW/glfw3.h>
+
 using json = nlohmann::json;
 
 int main()
@@ -26,6 +28,8 @@ int main()
 	db::init();	
 	InitWindow((int)screen_width, (int)screen_height, "cppsu!");
 	InitAudioDevice();
+
+	
 
 	// build sound effects
 
@@ -50,7 +54,13 @@ int main()
 	SetTextureFilter(aller_l.texture, TEXTURE_FILTER_BILINEAR);
 	SetTextureFilter(aller_b.texture, TEXTURE_FILTER_BILINEAR);
 
-	HideCursor();
+	
+
+	// Load Atlas
+
+	for (int i = 0; i < (int)SPRITE::TOTAL_COUNT; ++i) {
+		tex[i] = { 0,0,0,0 };
+	}
 
 	std::ifstream f("resources/atlas_data.json");
 	json j = json::parse(f);
@@ -58,9 +68,17 @@ int main()
 	atlas = LoadTexture("resources/atlas.png");
 	SetTextureFilter(atlas, TEXTURE_FILTER_BILINEAR);
 	for (auto& [filename, frame] : j["frames"].items()) {
+
 		Rectangle rect = { (float)frame["frame"]["x"], (float)frame["frame"]["y"], (float)frame["frame"]["w"], (float)frame["frame"]["h"] };
-		tex.push_back(rect);
+		for (auto& m : atlas_map) {
+			if (filename == m.name) {
+				tex[(int)m.id] = rect;
+				break;
+			}
+		}
 	}
+
+	HideCursor();
 
 	std::vector<std::string> maps_getting_added;
 	
@@ -91,12 +109,27 @@ int main()
 
 	auto start_time = GetTime();
 	float passed_time_ratio;
-	Vector2 mousePos;
+
+	Color fps_orange = { 255, 149, 24, 255 };
+	Color fps_yellow = { 255, 204, 34, 255 };
+	Color fps_green = { 172, 220, 25, 255 };
 
 	game_state = MAIN_MENU;
 
 	while (!WindowShouldClose())
 	{
+		if (IsKeyPressed(KEY_F2)) {
+			
+			EnableCursor();
+			SetMousePosition(cursor.x, cursor.y);
+			HideCursor();
+			settings_raw_input = false;
+		}
+		if (IsKeyPressed(KEY_F3)) {
+			
+			DisableCursor();
+			settings_raw_input = true;
+		}
 		UpdateMusicStream(music);
 		if (IsKeyPressed(KEY_F4)) {
 			ToggleFullscreen();
@@ -246,9 +279,67 @@ int main()
 			n.time_left -= GetFrameTime();
 		}
 
-		// draw cursor
-		mousePos = GetMousePosition();
-		DrawTexturePro(atlas, tex[1], { mousePos.x - tex[1].width * settings_mouse_scale / 2, mousePos.y - tex[1].height * settings_mouse_scale / 2, tex[1].width * settings_mouse_scale, tex[1].height * settings_mouse_scale}, { 0,0 }, 0.0f, WHITE); 
+		// draw cursor and snap back to borders if raw input is on
+		{
+			
+			
+			if (settings_raw_input) {
+
+				Vector2 d = GetMouseDelta();
+				cursor.x += d.x * settings_mouse_sens;
+				cursor.y += d.y * settings_mouse_sens;
+
+				if (cursor.x < 0) {
+					cursor.x = 0;
+				}
+				else if (cursor.x > screen_width) {
+					cursor.x = screen_width;
+				}
+
+				if (cursor.y < 0) {
+					cursor.y = 0;
+				}
+				else if (cursor.y > screen_height) {
+					cursor.y = screen_height;
+				}
+			}
+			else {
+				cursor = GetMousePosition();
+			}
+			auto& c = tex[(int)SPRITE::Cursor];
+			DrawTexturePro(atlas, c, { cursor.x - (c.width * settings_mouse_scale / 2) * screen_scale, cursor.y - (c.height * settings_mouse_scale / 2) * screen_scale, c.width * settings_mouse_scale * screen_scale, c.height * settings_mouse_scale * screen_scale }, { 0,0 }, 0.0f, WHITE);
+		}
+
+
+
+		// draw fps / ms info
+
+		if (settings_render_fps_ms) {
+			int fps_target = screen_refresh_rate * 2;
+			int fps = GetFPS();
+			Color color_fps;
+
+			if (fps_target <= fps) color_fps = fps_green;
+			else if (fps_target <= fps * 1.05f) color_fps = fps_yellow;
+			else color_fps = fps_orange;
+			DrawRectangleV({ screen_width - (76.0f * screen_height_ratio), screen_height - (56.0f * screen_height_ratio) }, { 68.0f * screen_height_ratio , 20.0f * screen_height_ratio }, color_fps);
+
+			float frametime = GetFrameTime() * 1000.0f;
+			Color color_frametime;
+			if (frametime <= 6.0f) color_frametime = fps_green;
+			else if (frametime <= 12.0f) color_frametime = fps_yellow;
+			else color_frametime = fps_orange;
+
+			DrawRectangleV({ screen_width - (76.0f * screen_height_ratio), screen_height - (24.0f * screen_height_ratio) }, { 68.0f * screen_height_ratio , 20.0f * screen_height_ratio }, color_frametime);
+
+			std::string fps_text = std::to_string(fps) + "fps";
+			float fps_offset = MeasureTextEx(aller_r, fps_text.c_str(), 18 * screen_height_ratio, 0).x;
+			DrawTextEx(aller_r, fps_text.c_str(), { screen_width - (42.0f * screen_height_ratio) - fps_offset / 2, screen_height - (56.0f * screen_height_ratio) }, 18 * screen_height_ratio, 0, BLACK);
+
+			std::string frametime_text = (format_floats(frametime) + "ms").c_str();
+			float frametime_offset = MeasureTextEx(aller_r, frametime_text.c_str(), 18 * screen_height_ratio, 0).x;
+			DrawTextEx(aller_r, frametime_text.c_str(), { screen_width - (42.0f * screen_height_ratio) - frametime_offset / 2, screen_height - (24.0f * screen_height_ratio) }, 18 * screen_height_ratio, 0, BLACK);
+		}
 
 		end_draw:
 		EndDrawing();

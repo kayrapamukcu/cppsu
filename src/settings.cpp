@@ -16,17 +16,22 @@ void settings::update_screen_resolution(int width, int height) {
 
 	screen_scale = std::min(screen_width_ratio, screen_height_ratio);
 	selected_resolution = { screen_width, screen_height };
+	GLFWmonitor* mon = glfwGetPrimaryMonitor();
+	auto mode = glfwGetVideoMode(mon);
+	screen_refresh_rate = mode->refreshRate;
 }
 
 void settings::init() {
 	// Get resolutions
 	GLFWmonitor* mon = glfwGetPrimaryMonitor();
+	auto mode = glfwGetVideoMode(mon);
+	screen_refresh_rate = mode->refreshRate;
 
 	int count;
 	const GLFWvidmode* modes = glfwGetVideoModes(mon, &count);
 
 	for (int i = 0; i < count; i++)
-	{
+	{	
 		Vector2 res = { (float)modes[i].width, (float)modes[i].height };
 
 		bool exists = false;

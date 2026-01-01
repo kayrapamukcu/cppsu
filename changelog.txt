@@ -114,21 +114,45 @@ a2025.1229
 
 (*) Inverted song offset "fix"
 
+a2025.1231
+
+(+) Result screen done
+(Code) Refactored atlas access (no more magic numbers)
+
+a2026.0101
+
+(+) Various small QoL additions like combo break sound
+(+) Implemented UR bar
+(+) Implemented fps/ms counter
+
 fix:
 map speed fucking up spinners
 slider hit sounds can fuck up at soft/drum/normal transitions
 
 add:
-FINISH RESULT SCREEN
-break combo sound 
-hp (toggleable)
+(DONE) FINISH RESULT SCREEN 
+(DONE) break combo sound
+(DONE) render 300s toggle
+(DONE) fps/ms overlay
+(DONE) SENSITIVITY & RAW INPUT!!!
+(DONE) Toggleable UR bar
+
 mods (with rate change)
+custom sounds
 sound control
 offline profile
 osu api support
-Toggleable UR bar + keep UR data to show at end of play
-change key settings (grid)
+keep UR data to show at end of play
+change key settings (grid/list)
 A good main menu
 menu transitions so it doesnt look shit.
-render 300s toggle
+fix number transparencies on notes
+toggle rectangle that shows play area
 record replay (toggleable for performance)
+
+
+toggleable key overlay
+some sliders end a bit too early (i think they might be missing the last point in the path), their sliderend hitsound volume is wrong, and some reverse arrows still change directions rarely. fix it (oyasumi hard has a bunch of wrong reverse arrows - maybe fix i used for perfect circle sliders is applicable here(beziers) as well - can i do this at map creation instead of ::draw though)
+
+hp (toggleable) (ON HOLD)
+

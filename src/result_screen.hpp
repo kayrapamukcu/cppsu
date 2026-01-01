@@ -12,4 +12,5 @@ private:
 	std::string score_str;
 	std::string played_text;
 	int channel_music;
+	Rectangle rank_to_draw;
 };
