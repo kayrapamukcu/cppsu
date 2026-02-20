@@ -19,92 +19,332 @@ void settings::update_screen_resolution(int width, int height) {
 	GLFWmonitor* mon = glfwGetPrimaryMonitor();
 	auto mode = glfwGetVideoMode(mon);
 	screen_refresh_rate = mode->refreshRate;
+	init();
 }
 
 void settings::init() {
 	// Get resolutions
-	GLFWmonitor* mon = glfwGetPrimaryMonitor();
-	auto mode = glfwGetVideoMode(mon);
-	screen_refresh_rate = mode->refreshRate;
 
-	int count;
-	const GLFWvidmode* modes = glfwGetVideoModes(mon, &count);
+	if (!initialized) {
+		GLFWmonitor* mon = glfwGetPrimaryMonitor();
+		auto mode = glfwGetVideoMode(mon);
+		screen_refresh_rate = mode->refreshRate;
 
-	for (int i = 0; i < count; i++)
-	{	
-		Vector2 res = { (float)modes[i].width, (float)modes[i].height };
+		int count;
+		const GLFWvidmode* modes = glfwGetVideoModes(mon, &count);
 
-		bool exists = false;
-		for (auto& r : available_resolutions)
-			if (r.x == res.x && r.y == res.y)
-				exists = true;
+		for (int i = 0; i < count; i++)
+		{
+			Vector2 res = { (float)modes[i].width, (float)modes[i].height };
 
-		if (!exists)
-			available_resolutions.push_back(res);
+			bool exists = false;
+			for (auto& r : available_resolutions)
+				if (r.x == res.x && r.y == res.y)
+					exists = true;
+
+			if (!exists)
+				available_resolutions.push_back(res);
+		}
+		initialized = true;
+	}
+
+	// Initialize buttons
+
+	const float sh = screen_height_ratio;
+	buttons.clear();
+	buttons_func.clear();
+	sliders.clear();
+	textfields.clear();
+	lists.clear();
+
+	buttons.push_back({ {48 * sh, 48 * sh}, {}, 16 * sh,
+						settings_render_ingame_ui,
+						"Render ingame UI"
+		});
+	buttons.push_back({ {48 * sh, 96 * sh}, {}, 16 * sh,
+						settings_sliderend_rendering,
+						"Render slider ends"
+		});
+	buttons.push_back({ {48 * sh, 144 * sh}, {}, 16 * sh,
+						settings_render_300s,
+						"Display 300 hitresults"
+		});
+	buttons.push_back({ {48 * sh, 192 * sh}, {}, 16 * sh,
+						settings_render_fps_ms,
+						"Display FPS / frametime"
+		});
+	buttons.push_back({ {48 * sh, 240 * sh}, {}, 16 * sh,
+						settings_render_play_area,
+						"Display play area rectangle"
+		});
+	buttons.push_back({ {48 * sh, 288 * sh}, {}, 16 * sh,
+						settings_display_ur_bar,
+						"Display UR bar"
+		});
+	buttons.push_back({ {48 * sh, 336 * sh}, {}, 16 * sh,
+						settings_ignore_map_colors,
+						"Ignore map colors"
+		});
+	buttons.push_back({ {48 * sh, 384 * sh}, {}, 16 * sh,
+						settings_display_background_ingame,
+						"Display map background ingame"
+		});
+	buttons.push_back({ {48 * sh, 432 * sh}, {}, 16 * sh,
+						settings_render_key_overlay,
+						"Display key overlay"
+		});
+	buttons.push_back({ {48 * sh, 480 * sh}, {}, 16 * sh,
+						settings_ingame_mouse_buttons,
+						"Enable mouse buttons ingame"
+		});
+
+	buttons_func.push_back(gui_button_func{ {{48 * sh, 528 * sh}, {}, 16 * sh,
+						settings_raw_input,
+						"Raw input"},
+						*callback_raw_input
+		});
+
+	
+	sliders.push_back({ {(400) * sh, 48 * sh, 160 * sh, 32 * sh}, 0.0f, 0.2f, 5.0f, 0.01f,
+						ur_bar_size, false,
+						"UR bar size", "x"
+		});
+	sliders.push_back({ {(400) * sh, 112 * sh, 160 * sh, 32 * sh}, 0.0f, 0.2f, 4.0f, 0.01f,
+						settings_cursor_scale, false,
+						"Cursor size", "x"
+		});
+	sliders.push_back({ {(400) * sh, 192 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
+						settings_volume_master, false,
+						"Master volume", "%"
+		});
+	sliders.push_back({ {(400) * sh, 264 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
+						settings_volume_music, false,
+						"Music volume", "%"
+		});
+	sliders.push_back({ {(400) * sh, 336 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
+						settings_volume_sfx, false,
+						"Sound effects volume", "%"
+		});
+
+	std::vector<std::string> resolutions_text;
+	for (size_t i = 0; i < available_resolutions.size(); i++) {
+		auto& res = available_resolutions[i];
+		resolutions_text.push_back(std::to_string((int)res.x) + "x" + std::to_string((int)res.y));
+	}
+
+	float res_menu_height = (float)resolutions_text.size() * 32.0f * sh;
+	lists.push_back({ {784 * sh, 48 * sh, 192 * sh, res_menu_height }, 0.0f, 0, 32.0f * sh, false,
+						*callback_update_resolution,
+						"Resolutions", resolutions_text 
+		});
+
+	for (auto& b : buttons) {
+		b.center = { b.pos.x + b.size / 2.0f, b.pos.y + b.size / 2.0f };
+	}
+	for (auto& b : buttons_func) {
+		b.center = { b.pos.x + b.size / 2.0f, b.pos.y + b.size / 2.0f };
+	}
+	for (auto& s : sliders) {
+		s.percentage = s.value / s.max_value;
 	}
 }
 
+void settings::go_back() {
+	selected_element = nullptr;
+	game_state = MAIN_MENU;
+}
+
 void settings::update() {
-
-	// add cursor size control
-
 	auto mouse_pressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 	Vector2 mouse_location = GetMousePosition();
 
 	DrawRectangleGradientV(0, 0, (int)screen_width, (int)screen_height, BLUE, DARKBLUE);
 	if (IsKeyPressed(KEY_B)) {
-		game_state = MAIN_MENU;
+		go_back();
 	}
 
-	// display resolutions
-	auto res_text_size = MeasureTextEx(aller_r, "Resolutions", 48 * screen_scale, 0);
-	auto res_subtext_size = MeasureTextEx(aller_r, "(You can scroll)", 24 * screen_scale, 0);
-
-	auto res_text_x = 783 * screen_width_ratio + (208 * screen_width_ratio - res_text_size.x) * 0.5f;
-	auto res_subtext_x = 783 * screen_width_ratio + (208 * screen_width_ratio - res_subtext_size.x) * 0.5f;
-
-	DrawRectangle(750 * screen_width_ratio, 0, screen_width - 684 * screen_width_ratio, screen_height, GRAY);
-	DrawRectangle(750 * screen_width_ratio, 0, 10 * screen_width_ratio, screen_height, BLACK);
-	DrawTextExScaled(aller_r, "Resolutions", { 783, 8 + settings_resolution_scroll_offset }, 48, 0, WHITE);
-	DrawTextExScaled(aller_r, "(You can scroll)", { 830, 40 + settings_resolution_scroll_offset }, 24, 0, WHITE);
-
-	float wheel = GetMouseWheelMove();
-	if (wheel != 0.0f) {
-		settings_resolution_scroll_offset += wheel * 30.0f;
+	if (m1_pressed) selected_element = nullptr;
+	
+	for (auto& b : buttons) {
+		update_button(b);
+		draw_button(b);
+	}
+	for (auto& b : buttons_func) {
+		update_button_func(b);
+		draw_button(b);
+	}
+	for (auto& s : sliders) {
+		update_slider(s);
+		draw_slider(s);
+	}
+	for (auto& l : lists) {
+		update_dropdown_list(l);
+		draw_dropdown_list(l);
 	}
 
-	float item_height = 36 * screen_height_ratio;
-	float list_height = available_resolutions.size() * item_height;
-	float viewport_height = screen_height - 64 * screen_height_ratio;
+}
 
-	if (list_height > viewport_height) {
-		float max_scroll = 0;
-		float min_scroll = viewport_height - list_height;
-		settings_resolution_scroll_offset = std::clamp(settings_resolution_scroll_offset, min_scroll, max_scroll);
+void settings::callback_raw_input()
+{
+	if (settings_raw_input) {
+		EnableCursor();
+		SetMousePosition(cursor.x, cursor.y);
+		HideCursor();
+		settings_raw_input = false;
 	}
 	else {
-		settings_resolution_scroll_offset = 0;
+		DisableCursor();
+		settings_raw_input = true;
+	}
+}
+
+void settings::update_button(gui_button& b)
+{ // && cursor.x >= b.pos.x && cursor.x <= b.pos.x + b.size && cursor.y >= b.pos.y && cursor.y <= b.pos.x + b.size
+	if (m1_pressed && CheckCollisionPointCircle(cursor, b.center, b.size)) {
+		b.option = !b.option;
+		play_sound_effect("normal-hitnormal.wav");
+	}
+}
+
+void settings::update_button_func(gui_button_func& b)
+{
+	if (m1_pressed && CheckCollisionPointCircle(cursor, b.center, b.size)) {
+		b.func();
+		play_sound_effect("normal-hitnormal.wav");
+	}
+}
+
+void settings::draw_button(gui_button& b)
+{
+	DrawCircleV(b.center, b.size, BLACK);
+	DrawCircleLinesV(b.center, b.size, WHITE);
+
+	if (b.option)
+		DrawCircleV(b.center, b.size * 0.8f, WHITE);
+	DrawTextEx(aller_r, b.desc.c_str(), { b.pos.x + b.size * 1.8f, b.pos.y }, b.size * 1.5f, 0, WHITE);
+}
+
+void settings::update_slider(gui_slider& s)
+{
+	if (m1_pressed && CheckCollisionPointRec(cursor, s.pos_dim)) {
+		selected_element = &s;
+		s.held = true;
+	}
+	if (selected_element == &s) {
+		if (m1_down) {
+			s.value = s.min_value + (s.max_value - s.min_value) * std::max(0.0f, std::min((cursor.x - s.pos_dim.x) / s.pos_dim.width, 1.0f));
+
+			s.value = ((float)((int)(s.value / s.fine_control_val + .5))) * s.fine_control_val;
+			s.percentage = std::max(0.0f, std::min(((s.value - s.min_value) / (s.max_value - s.min_value)), 1.0f));
+		}
+		if (IsKeyPressed(KEY_RIGHT)) {
+			s.value += s.fine_control_val;
+			s.value = std::clamp(s.value, s.min_value, s.max_value);
+			s.percentage = std::max(0.0f, std::min(((s.value - s.min_value) / (s.max_value - s.min_value)), 1.0f));
+		}
+		if (IsKeyPressed(KEY_LEFT)) {
+			s.value -= s.fine_control_val;
+			s.value = std::clamp(s.value, s.min_value, s.max_value);
+			s.percentage = std::max(0.0f, std::min(((s.value - s.min_value) / (s.max_value - s.min_value)), 1.0f));
+		}
+		
 	}
 
-	for (size_t i = 0; i < available_resolutions.size(); i++) {
-		auto& res = available_resolutions[i];
-		std::string res_str = std::to_string((int)res.x) + "x" + std::to_string((int)res.y);
-		Color col = (res.x == selected_resolution.x && res.y == selected_resolution.y) ? YELLOW : WHITE;
+	if (m1_released) s.held = false;
+}
 
-		float button_width = 208 * screen_width_ratio;
-		float button_x = 783 * screen_width_ratio;
-		float button_y = (64 + i * 36) * screen_height_ratio + settings_resolution_scroll_offset;
-		float font_size = 24 * screen_scale;
-		Vector2 text_size = MeasureTextEx(aller_r, res_str.c_str(), font_size, 0);
-		float text_x = button_x + (button_width - text_size.x) * 0.5f;
-		float text_y = button_y + (32 * screen_scale - text_size.y) * 0.5f;
+void settings::draw_slider(gui_slider& s)
+{
+	Color c = GRAY;
+	if (selected_element == &s) c = WHITE;
+	DrawRectangleRec(s.pos_dim, BLACK);
+	DrawRectangleLinesF(s.pos_dim.x, s.pos_dim.y, s.pos_dim.width, s.pos_dim.height, c);
+	
+	DrawRectangleV({ s.pos_dim.x, s.pos_dim.y }, { s.percentage * s.pos_dim.width, s.pos_dim.height }, c);
+	DrawTextEx(aller_r, s.desc.c_str(), { s.pos_dim.x + s.pos_dim.width + 16 * screen_height_ratio, s.pos_dim.y }, 24 * screen_height_ratio, 0, c);
 
-		DrawRectangle(button_x, button_y, button_width, 32 * screen_scale, BLACK);
-		DrawTextEx(aller_r, res_str.c_str(), { text_x, text_y }, font_size, 0, col);
+	std::string text = format_floats(s.value) + s.unit;
+	auto text_length = MeasureTextEx(aller_r, text.c_str(), 24 * screen_height_ratio, 0);
+	DrawTextEx(aller_r, text.c_str(), { s.pos_dim.x + s.pos_dim.width / 2.0f - text_length.x / 2.0f, s.pos_dim.y + s.pos_dim.height }, 24 * screen_height_ratio, 0, BLACK);
+}
 
-		if (CheckCollisionPointRec(mouse_location, { button_x, button_y, button_width, 32 * screen_scale })) {
-			if(mouse_pressed) 
-				update_screen_resolution(res.x, res.y);
+void settings::callback_update_resolution(int index) {
+	update_screen_resolution(available_resolutions[index].x, available_resolutions[index].y);
+}
+
+void settings::update_dropdown_list(gui_dropdown_list& b) {
+	if (m1_pressed) {
+		if (CheckCollisionPointRec(cursor, { b.pos_dim.x, b.pos_dim.y, b.pos_dim.width, b.element_size })) {
+			selected_element = &b;
+			b.list_open = !b.list_open;
+		}
+		if (b.list_open) {
+			if (!CheckCollisionPointRec(cursor, b.pos_dim)) {
+				b.list_open = false;
+				b.scroll_pos = 0;
+			}
+		}
+	}
+	if (b.list_open) {
+
+		float wheel = GetMouseWheelMove();
+		if (wheel != 0.0f) {
+			b.scroll_pos += wheel * b.element_size;
+		}
+
+		if (b.pos_dim.height > b.pos_dim.y) {
+			float max_scroll = 0;
+			float min_scroll = b.pos_dim.y - b.pos_dim.height;
+			b.scroll_pos = std::clamp(b.scroll_pos, min_scroll, max_scroll);
+		}
+		else {
+			b.scroll_pos = 0;
+		}
+
+		if (m1_pressed && CheckCollisionPointRec(cursor, b.pos_dim)) {
+			int begin_height = b.scroll_pos + b.pos_dim.y + b.element_size;
+			if (cursor.y < begin_height) return;
+			int index = (cursor.y - begin_height) / b.element_size;
+			if (index >= b.options.size()) return;
+			b.func(index);
 		}
 	}
 }
+
+void settings::draw_dropdown_list(gui_dropdown_list& b) {
+	DrawRectangleRec({ b.pos_dim.x, b.pos_dim.y, b.pos_dim.width, b.element_size }, BLACK);
+
+	Vector2 text_size = MeasureTextEx(aller_r, b.desc.c_str(), 24 * screen_height_ratio, 0);
+
+	float button_y = b.pos_dim.y + b.scroll_pos;
+	float text_x = b.pos_dim.x + (b.pos_dim.width - text_size.x) * 0.5f;
+	float text_y = b.pos_dim.y + (b.element_size - text_size.y) * 0.5f;
+
+
+	DrawTextEx(aller_r, b.desc.c_str(), { text_x - 16 * screen_height_ratio, text_y }, 24 * screen_height_ratio, 0, WHITE);
+	
+	if (b.list_open) {
+		DrawTriangle(
+			{ b.pos_dim.x + b.pos_dim.width * 0.82f, b.pos_dim.y + 0.7f * b.element_size },
+			{ b.pos_dim.x + b.pos_dim.width * 0.94f, b.pos_dim.y + 0.7f * b.element_size },
+			{ b.pos_dim.x + b.pos_dim.width * 0.88f, b.pos_dim.y + 0.2f * b.element_size }, WHITE);
+		DrawRectangleRec({ b.pos_dim.x, b.pos_dim.y + b.element_size, b.pos_dim.width, b.pos_dim.height + b.scroll_pos }, BLACK);
+
+		for (int i = 0; i < b.options.size(); i++) {
+			Vector2 text_size = MeasureTextEx(aller_r, b.options[i].c_str(), 24 * screen_height_ratio, 0);
+			float text_x = b.pos_dim.x + (b.pos_dim.width - text_size.x) * 0.5f;
+			float text_y = (i + 1) * b.element_size + button_y + (b.element_size - text_size.y) * 0.5f;
+			if (text_y < b.pos_dim.y + b.element_size - 4) continue;
+			DrawTextEx(aller_r, b.options[i].c_str(), { text_x, text_y }, 24 * screen_height_ratio, 0, WHITE);
+		}
+	}
+	else {
+		DrawTriangle(
+			{ b.pos_dim.x + b.pos_dim.width * 0.88f, b.pos_dim.y + 0.7f * b.element_size },
+			{ b.pos_dim.x + b.pos_dim.width * 0.94f, b.pos_dim.y + 0.2f * b.element_size },
+			{ b.pos_dim.x + b.pos_dim.width * 0.82f, b.pos_dim.y + 0.2f * b.element_size }, WHITE);
+	}
+
+	
+}
+

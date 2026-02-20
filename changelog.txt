@@ -52,18 +52,18 @@ a2025.1123
 
 a2025.1124
 
-! (+) Slider rendering done
+(+) Slider rendering done
 (*) Fixed crash on result screen for old computers
 
 a2025.1125 (release alpha v0.0.1)
 
-! (~) Slider rendering fixes & slider logic progress
+(~) Slider rendering fixes & slider logic progress
 (*) Fixed slider end times
 (*) Fixed a database crash
 
 a2025.1126
 
-! (+) Added stack leniency
+(+) Added stack leniency
 (*) Database version 8: more map metadata stored
 (*) Fixed database LastID bug
 (*) Fixed a map import bug
@@ -117,6 +117,7 @@ a2025.1229
 a2025.1231
 
 (+) Result screen done
+(+) Hit results are now textured and they fade out
 (Code) Refactored atlas access (no more magic numbers)
 
 a2026.0101
@@ -124,6 +125,20 @@ a2026.0101
 (+) Various small QoL additions like combo break sound
 (+) Implemented UR bar
 (+) Implemented fps/ms counter
+(+) Added UR info to results screen
+
+a2026.0105
+
+(~) Progress on settings screen
+(+) Added raw input toggle
+(*) Fixed crash on maps with only spinners
+
+a2026.0220
+
+(+) Implemented dropdown lists on settings screen
+(+) Added a few misc. settings like cursor size
+(*) Fixed numbers on top of circles not fading in correctly
+(*) Added higher resolution images for result screen
 
 fix:
 map speed fucking up spinners
@@ -136,23 +151,27 @@ add:
 (DONE) fps/ms overlay
 (DONE) SENSITIVITY & RAW INPUT!!!
 (DONE) Toggleable UR bar
+(DONE) keep UR data to show at end of play
+(DONE) toggle rectangle that shows play area
 
 mods (with rate change)
 custom sounds
 sound control
 offline profile
 osu api support
-keep UR data to show at end of play
+
 change key settings (grid/list)
 A good main menu
 menu transitions so it doesnt look shit.
 fix number transparencies on notes
-toggle rectangle that shows play area
+
 record replay (toggleable for performance)
+a benchmark button (auto mod prerequisite) would be cool
 
 
 toggleable key overlay
-some sliders end a bit too early (i think they might be missing the last point in the path), their sliderend hitsound volume is wrong, and some reverse arrows still change directions rarely. fix it (oyasumi hard has a bunch of wrong reverse arrows - maybe fix i used for perfect circle sliders is applicable here(beziers) as well - can i do this at map creation instead of ::draw though)
+some sliders end a bit too early (i think they might be missing the last point in the path), their sliderend hitsound volume is wrong, and some reverse arrows still change directions rarely. fix it (oyasumi hard has a bunch of wrong reverse arrows - maybe fix i used for perfect circle sliders is applicable here(beziers) as well - can i do this at map creation instead of ::draw though) 
+also bbydoll has some sliders that dont show up at all wtf
 
 hp (toggleable) (ON HOLD)
 

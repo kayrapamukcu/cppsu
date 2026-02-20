@@ -27,30 +27,36 @@ result_screen::result_screen(results_struct results)
 	channel_music = play_sound_effect("applause.mp3");
 	switch (results.rank) {
 	case RANK_XH:
-		rank_to_draw = tex[(int)SPRITE::RankXHSmall];
+		rank_to_draw = tex[(int)SPRITE::RankXH];
 		break;
 	case RANK_X:
-		rank_to_draw = tex[(int)SPRITE::RankXSmall];
+		rank_to_draw = tex[(int)SPRITE::RankX];
 		break;
 	case RANK_SH:
-		rank_to_draw = tex[(int)SPRITE::RankSHSmall];
+		rank_to_draw = tex[(int)SPRITE::RankSH];
 		break;
 	case RANK_S:
-		rank_to_draw = tex[(int)SPRITE::RankSSmall];
+		rank_to_draw = tex[(int)SPRITE::RankS];
 		break;
 	case RANK_A:
-		rank_to_draw = tex[(int)SPRITE::RankASmall];
+		rank_to_draw = tex[(int)SPRITE::RankA];
 		break;
 	case RANK_B:
-		rank_to_draw = tex[(int)SPRITE::RankBSmall];
+		rank_to_draw = tex[(int)SPRITE::RankB];
 		break;
 	case RANK_C:
-		rank_to_draw = tex[(int)SPRITE::RankCSmall];
+		rank_to_draw = tex[(int)SPRITE::RankC];
 		break;
 	case RANK_D:
-		rank_to_draw = tex[(int)SPRITE::RankDSmall];
+		rank_to_draw = tex[(int)SPRITE::RankD];
 		break;
 	}
+
+	std::string cv_ur = "";
+	if (results.map_speed != 1.0f) 
+		cv_ur = "\n(" + format_floats(results.unstable_rate[1] / results.map_speed) + " cv.UR)";
+
+	ur_text = "Accuracy:\nError: " + format_floats(results.unstable_rate[0]) + "ms to " + format_floats(results.unstable_rate[2]) + "ms avg\nUnstable Rate: " + format_floats(results.unstable_rate[1]) + cv_ur;
 }
 
 void result_screen::draw() {
@@ -88,10 +94,14 @@ void result_screen::draw() {
 	if (results.perfect_combo)
 		DrawTexturePro(atlas, tex[(int)SPRITE::PerfectComboText], { 150.0f * sh, 616.0f * sh, tex[(int)SPRITE::PerfectComboText].width * sh, tex[(int)SPRITE::PerfectComboText].height * sh }, { 0, 0 }, 0.0f, WHITE);
 
-	DrawTexturePro(atlas, rank_to_draw, { screen_width - 344.0f * sh, 120.0f * sh, 10 * rank_to_draw.width * sh, 10 * rank_to_draw.height * sh }, { 0, 0 }, 0.0f, WHITE);
+	DrawTexturePro(atlas, rank_to_draw, { screen_width - 344.0f * sh, 120.0f * sh, 2 * rank_to_draw.width * sh, 2 * rank_to_draw.height * sh }, { 0, 0 }, 0.0f, WHITE);
+
+
+	DrawRectangleV({ 220 * sh, 620 * sh }, { 240 * sh, 84 * sh }, { 0, 0, 0, 210 });
+	DrawTextEx(aller_r, ur_text.c_str(), { 220 * sh, 620 * sh }, 20 * sh, 0, WHITE);
 
 	// Draw header
-	DrawRectangle(0, 0, (int)screen_width, (int)(screen_height / 8), Color{ 0, 0, 0, 200 });
+	DrawRectangleV({ 0, 0 }, { screen_width, screen_height / 8 }, Color{ 0, 0, 0, 200 });
 	DrawTextEx(aller_l, played_text.c_str(), { 4 * sh, 64 * sh}, 24 * sh, 0, WHITE);
 	DrawTextEx(aller_l, results.beatmap_header.c_str(), { 4 * sh, 4 * sh}, 36 * sh, 0, WHITE);
 	DrawTextEx(aller_l, results.beatmap_header_2.c_str(), { 4 * sh, 40 * sh }, 24 * sh, 0, WHITE);

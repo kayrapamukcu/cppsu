@@ -8,7 +8,7 @@
 enum HitObjectType {
 	CIRCLE,
 	SLIDER,
-	SPINNER
+	SPINNER,
 };
 
 enum HitResult {
@@ -93,8 +93,8 @@ public:
 	void update();
 	void draw();
 private:
-	inline void object_hit(HitObjectEntry pos, HitResult res);
-	inline void recalculate_score_acc(HitResult res);
+	inline void object_hit(const HitObjectEntry& pos, const HitResult res);
+	inline void recalculate_score_acc(const HitResult res);
 	inline void combo_break();
 	inline void add_unstable_rate_data(float ur);
 	void check_hit(bool notelock_check);
@@ -104,7 +104,7 @@ private:
 	float map_speed = 1.0f; 
 	float mod_score_multiplier = 1.0f;
 	float difficulty_multiplier = 1.0f;
-	Vector2 mouse_pos = { 0, 0 };
+	
 	Vector2 mouse_pos_prev = { 0, 0 };
 	file_struct map_info;
 	float map_time = -1000.0f;

@@ -29,12 +29,9 @@ int main()
 	InitWindow((int)screen_width, (int)screen_height, "cppsu!");
 	InitAudioDevice();
 
-	
-
 	// build sound effects
 
 	std::filesystem::path sfx_path = db::fs_path / "resources" / "sounds";
-
 
 	auto files_vect = db::get_files(sfx_path, std::vector<std::string>{".wav", ".mp3"});
 
@@ -43,6 +40,7 @@ int main()
 		sound_effects[f] = sfx;
 		std::cout << std::format("Loaded SFX: {}\n", f);
 	}
+
 
 	SetExitKey(KEY_NULL);
 
@@ -118,6 +116,42 @@ int main()
 
 	while (!WindowShouldClose())
 	{
+		// update cursor values
+		{
+			if (settings_raw_input) {
+
+				Vector2 d = GetMouseDelta();
+				cursor.x += d.x * settings_mouse_sens;
+				cursor.y += d.y * settings_mouse_sens;
+
+				if (cursor.x < 0) {
+					cursor.x = 0;
+				}
+				else if (cursor.x > screen_width) {
+					cursor.x = screen_width;
+				}
+
+				if (cursor.y < 0) {
+					cursor.y = 0;
+				}
+				else if (cursor.y > screen_height) {
+					cursor.y = screen_height;
+				}
+			}
+			else {
+				cursor = GetMousePosition();
+			}
+			m1_down = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+			m2_down = IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
+
+			m1_pressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+			m2_pressed = IsMouseButtonPressed(MOUSE_BUTTON_RIGHT);
+
+			m1_released = IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
+			m2_released = IsMouseButtonReleased(MOUSE_BUTTON_RIGHT);
+		}
+		
+
 		if (IsKeyPressed(KEY_F2)) {
 			
 			EnableCursor();
@@ -130,6 +164,8 @@ int main()
 			DisableCursor();
 			settings_raw_input = true;
 		}
+
+
 		UpdateMusicStream(music);
 		if (IsKeyPressed(KEY_F4)) {
 			ToggleFullscreen();
@@ -180,6 +216,8 @@ int main()
 				DrawTextExScaled(aller_r, "Press S to open the settings!", { 32, screen_height - 96 }, 24 * screen_scale, 0, WHITE);
 				DrawTextExScaled(aller_r, "Press M to switch to the song select screen!", { 32, screen_height - 64 }, 24*screen_scale, 0, WHITE);
 				DrawTextExScaled(aller_r, "Press N to import maps!", { 32, screen_height - 32 }, 24*screen_scale, 0, WHITE);
+
+				DrawTextEx(aller_r, ("Version " + std::string(CLIENT_VERSION)).c_str(), { (screen_width - 280 * screen_height_ratio), (screen_height - 32 * screen_height_ratio) }, 24 * screen_height_ratio, 0, WHITE);
 				if (IsKeyPressed(KEY_M)) {
 					song_select::init(false);
 				}
@@ -189,6 +227,7 @@ int main()
 					}
 				}
 				if (IsKeyPressed(KEY_S)) {
+					settings::init();
 					game_state = SETTINGS;
 				}
 			break;
@@ -281,33 +320,8 @@ int main()
 
 		// draw cursor and snap back to borders if raw input is on
 		{
-			
-			
-			if (settings_raw_input) {
-
-				Vector2 d = GetMouseDelta();
-				cursor.x += d.x * settings_mouse_sens;
-				cursor.y += d.y * settings_mouse_sens;
-
-				if (cursor.x < 0) {
-					cursor.x = 0;
-				}
-				else if (cursor.x > screen_width) {
-					cursor.x = screen_width;
-				}
-
-				if (cursor.y < 0) {
-					cursor.y = 0;
-				}
-				else if (cursor.y > screen_height) {
-					cursor.y = screen_height;
-				}
-			}
-			else {
-				cursor = GetMousePosition();
-			}
 			auto& c = tex[(int)SPRITE::Cursor];
-			DrawTexturePro(atlas, c, { cursor.x - (c.width * settings_mouse_scale / 2) * screen_scale, cursor.y - (c.height * settings_mouse_scale / 2) * screen_scale, c.width * settings_mouse_scale * screen_scale, c.height * settings_mouse_scale * screen_scale }, { 0,0 }, 0.0f, WHITE);
+			DrawTexturePro(atlas, c, { cursor.x - (c.width * settings_cursor_scale / 2) * screen_scale, cursor.y - (c.height * settings_cursor_scale / 2) * screen_scale, c.width * settings_cursor_scale * screen_scale, c.height * settings_cursor_scale * screen_scale }, { 0,0 }, 0.0f, WHITE);
 		}
 
 

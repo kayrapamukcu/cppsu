@@ -20,16 +20,6 @@ enum class SPRITE : int {
 	ApproachCircle,
 	SliderBody,
 	ReverseArrow,
-	Default0,
-	Default1,
-	Default2,
-	Default3,
-	Default4,
-	Default5,
-	Default6,
-	Default7,
-	Default8,
-	Default9,
 	Result0,
 	Result50,
 	Result100,
@@ -47,6 +37,14 @@ enum class SPRITE : int {
 	RankBSmall,
 	RankCSmall,
 	RankDSmall,
+	RankXH,
+	RankX,
+	RankSH,
+	RankS,
+	RankA,
+	RankB,
+	RankC,
+	RankD,
 	TOTAL_COUNT
 };
 
@@ -60,16 +58,6 @@ static constexpr struct {
 	{ "approachcircle.png",		SPRITE::ApproachCircle },
 	{ "sliderbody.png",			SPRITE::SliderBody },
 	{ "reversearrow.png",		SPRITE::ReverseArrow },
-	{ "score-0.png",			SPRITE::Default0 },
-	{ "score-1.png",			SPRITE::Default1 },
-	{ "score-2.png",			SPRITE::Default2 },
-	{ "score-3.png",			SPRITE::Default3 },
-	{ "score-4.png",			SPRITE::Default4 },
-	{ "score-5.png",			SPRITE::Default5 },
-	{ "score-6.png",			SPRITE::Default6 },
-	{ "score-7.png",			SPRITE::Default7 },
-	{ "score-8.png",			SPRITE::Default8 },
-	{ "score-9.png",			SPRITE::Default9 },
 	{ "hit0.png",				SPRITE::Result0 },
 	{ "hit50.png",				SPRITE::Result50 },
 	{ "hit100.png",				SPRITE::Result100 },
@@ -86,7 +74,15 @@ static constexpr struct {
 	{ "ranking-A-small.png",	SPRITE::RankASmall},
 	{ "ranking-B-small.png",	SPRITE::RankBSmall},
 	{ "ranking-C-small.png",	SPRITE::RankCSmall},
-	{ "ranking-D-small.png",	SPRITE::RankDSmall}
+	{ "ranking-D-small.png",	SPRITE::RankDSmall},
+	{ "ranking-XH_half.png",	SPRITE::RankXH},
+	{ "ranking-X_half.png",		SPRITE::RankX},
+	{ "ranking-SH_half.png",	SPRITE::RankSH},
+	{ "ranking-S_half.png",		SPRITE::RankS},
+	{ "ranking-A_half.png",		SPRITE::RankA},
+	{ "ranking-B_half.png",		SPRITE::RankB},
+	{ "ranking-C_half.png",		SPRITE::RankC},
+	{ "ranking-D_half.png",		SPRITE::RankD}
 };
 
 // Enums and structs
@@ -173,7 +169,9 @@ struct results_struct {
 	uint32_t geki = 0;
 	uint32_t katu = 0;
 
+	std::array<float, 3> unstable_rate;
 	float accuracy = 0.0f;
+	float map_speed = 1.0f;
 	RANKS rank = RANK_F;
 	bool perfect_combo;
 };
@@ -194,8 +192,11 @@ inline float screen_width = 1024.0f;
 inline float screen_height = 768.0f;
 inline int screen_refresh_rate = 60.0f;
 
-inline float settings_mouse_scale = 1.0f;
+inline float settings_cursor_scale = 1.0f;
 inline float settings_mouse_sens = 1.0f;
+inline float settings_volume_master = 100.0f;
+inline float settings_volume_music = 100.0f;
+inline float settings_volume_sfx = 100.0f;
 inline float ur_bar_size = 1.0f;
 
 inline bool settings_sliderend_rendering = false;
@@ -204,6 +205,12 @@ inline bool settings_display_ur_bar = true;
 inline bool settings_ignore_map_colors = false;
 inline bool settings_render_fps_ms = true;
 inline bool settings_raw_input = false;
+inline bool settings_render_play_area = false;
+inline bool settings_render_ingame_ui = true;
+inline bool settings_fullscreen = false;
+inline bool settings_display_background_ingame = false;
+inline bool settings_render_key_overlay = false;
+inline bool settings_ingame_mouse_buttons = false;
 
 
 inline std::string player_name = "Player";
@@ -219,7 +226,6 @@ inline std::array<Sound, MAX_AUDIO_CHANNELS> audio_channels; // Sound, is_playin
 
 static inline void stop_sound_effect(int channel) {
 	StopSound(audio_channels[channel]);
-	// UnloadSoundAlias(audio_channels[channel]);
 }
 
 static inline int play_sound_effect(const std::string& name, float volume = 1.0f) {
@@ -239,12 +245,10 @@ static inline int play_sound_effect(const std::string& name, float volume = 1.0f
 // Global variables
 
 inline constexpr int DB_VERSION = 8;
-inline constexpr std::string_view CLIENT_VERSION = "a2025.1231";
+inline constexpr std::string_view CLIENT_VERSION = "a2026.0220";
 
 inline float screen_width_ratio = (float)screen_width / 1024.0f;
 inline float screen_height_ratio = (float)screen_height / 768.0f;
-
-
 
 inline float screen_scale = std::min(screen_width_ratio, screen_height_ratio);
 
@@ -283,6 +287,15 @@ inline bool key2_down = false;
 
 inline KeyboardKey key_1 = KEY_C;
 inline KeyboardKey key_2 = KEY_V;
+
+inline bool m1_down = false;
+inline bool m2_down = false;
+
+inline bool m1_pressed = false;
+inline bool m2_pressed = false;
+
+inline bool m1_released = false;
+inline bool m2_released = false;
 
 inline Color c_hit_yellow = { 218, 174, 70, 255 };
 inline Color c_hit_green = { 87, 227, 19, 255 };

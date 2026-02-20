@@ -133,7 +133,7 @@ void song_select::update() {
 		for (int i = 0; i < visible_entries; ++i) {
 			y_origin = screen_height_ratio * (y_offset + 32.0f + i * entry_row_height - frac * entry_row_height);
 			x_origin = screen_width_ratio * (512.0f + abs(screen_height / 2 - y_origin) * 0.1f);
-			if (GetMouseY() >= y_origin && GetMouseY() <= y_origin + entry_row_height * screen_height_ratio && GetMouseX() > x_origin) {
+			if (cursor.y >= y_origin && cursor.y <= y_origin + entry_row_height * screen_height_ratio && cursor.x > x_origin) {
 				int idx = (int)base + i;
 				std::cout << "Clicked on entry " << idx << "\n";
 				if (idx >= 0 && idx < map_list_size) {
