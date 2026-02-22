@@ -14,7 +14,12 @@ public:
 	static void update();
 	static void go_back();
 private:
-	struct gui_button {
+	enum VOLUME_TYPE {
+		MASTER,
+		MUSIC,
+		SOUND
+	};
+	struct gui_switch {
 		Vector2 pos;
 		Vector2 center;
 		float size;
@@ -23,7 +28,7 @@ private:
 		std::string desc;
 	};
 
-	struct gui_button_func : gui_button{
+	struct gui_switch_func : gui_switch {
 		void(*func)(void);
 	};
 
@@ -39,6 +44,10 @@ private:
 
 		std::string desc;
 		std::string unit;
+	};
+
+	struct gui_slider_func : gui_slider {
+		void(*func)(float);
 	};
 
 	struct gui_textfield {
@@ -72,9 +81,10 @@ private:
 	static inline Vector2 selected_resolution = { screen_width, screen_height };
 	static inline bool initialized = false;
 
-	static inline std::vector<gui_button> buttons;
-	static inline std::vector<gui_button_func> buttons_func;
+	static inline std::vector<gui_switch> switches;
+	static inline std::vector<gui_switch_func> switches_func;
 	static inline std::vector<gui_slider> sliders;
+	static inline std::vector<gui_slider_func> sliders_func;
 	static inline std::vector<gui_textfield> textfields;
 	static inline std::vector<gui_dropdown_list> lists;
 
@@ -83,11 +93,15 @@ private:
 	static void callback_raw_input();
 	static void callback_update_resolution(int index);
 
-	static void update_button(gui_button& b);
-	static void update_button_func(gui_button_func& b);
-	static void draw_button(gui_button& b);
+	static void update_switch(gui_switch& b);
+	static void update_switch_func(gui_switch_func& b);
+	static void draw_switch(gui_switch& b);
 
+	static void callback_update_volume_master(float value);
+	static void callback_update_volume_music(float value);
+	static void callback_update_volume_sound(float value);
 	static void update_slider(gui_slider& s);
+	static void update_slider_func(gui_slider_func& s);
 	static void draw_slider(gui_slider& s);
 
 	static void update_dropdown_list(gui_dropdown_list& b);

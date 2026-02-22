@@ -99,6 +99,9 @@ private:
 	inline void add_unstable_rate_data(float ur);
 	void check_hit(bool notelock_check);
 
+	bool paused = false;
+	double paused_time = 0.0f;
+
 	static constexpr float slider_body_hit_radius = 2.2f;
 	static constexpr float draw_hit_time = 0.4f;
 	float map_speed = 1.0f; 
@@ -109,6 +112,7 @@ private:
 	file_struct map_info;
 	float map_time = -1000.0f;
 	float map_begin_time = -1000.0f;
+	float map_time_accumulator = 0.0f;
 	int map_first_object_time = 0;
 	int on_object = 0;
 	int visible_end = 0;

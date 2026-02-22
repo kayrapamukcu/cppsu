@@ -45,6 +45,21 @@ enum class SPRITE : int {
 	RankB,
 	RankC,
 	RankD,
+	Back,
+	ModDT,
+	ModEZ,
+	ModFL,
+	ModHT,
+	ModHR,
+	ModHD,
+	ModNC,
+	ModNF,
+	ModPF,
+	ModSD,
+	Pixel,
+	ButtonMods,
+	ButtonRandom,
+	ButtonBeatmapOptions,
 	TOTAL_COUNT
 };
 
@@ -82,11 +97,39 @@ static constexpr struct {
 	{ "ranking-A_half.png",		SPRITE::RankA},
 	{ "ranking-B_half.png",		SPRITE::RankB},
 	{ "ranking-C_half.png",		SPRITE::RankC},
-	{ "ranking-D_half.png",		SPRITE::RankD}
+	{ "ranking-D_half.png",		SPRITE::RankD},
+	{ "back.png",				SPRITE::Back},
+
+	{ "easy.png",				SPRITE::ModEZ},
+	{ "nofail.png",				SPRITE::ModNF},
+	{ "halftime.png",			SPRITE::ModHT},
+	{ "hardrock.png",			SPRITE::ModHR},
+	{ "suddendeath.png",		SPRITE::ModSD},
+	{ "perfect.png",			SPRITE::ModPF},
+	{ "doubletime.png",			SPRITE::ModDT},
+	{ "nightcore.png",			SPRITE::ModNC},
+	{ "hidden.png",				SPRITE::ModHD},
+	{ "flashlight.png",			SPRITE::ModFL},
+	{ "b_mods.png",				SPRITE::ButtonMods},
+	{ "b_random.png",			SPRITE::ButtonRandom},
+	{ "b_beatmap.png",			SPRITE::ButtonBeatmapOptions},
+
+	
+	{ "whitepixel.png",			SPRITE::Pixel}
 };
 
 // Enums and structs
 
+struct button_callback {
+	SPRITE sprite;
+	Vector2 pos;
+	Vector2 scale;
+	void(*func)(int);
+	int id;
+	void(*draw)(button_callback&);
+	std::string text;
+	Color color;
+};
 
 enum SAMPLE_SETS {
 	SAMPLE_SET_NORMAL,
@@ -114,6 +157,24 @@ enum GAME_STATES {
 	SONG_SELECT,
 	INGAME,
 	RESULT_SCREEN
+};
+
+enum class MODS {
+	AT,
+	SO,
+	EZ,
+	NF,
+	HD,
+	HT,
+	DT,
+	NC,
+	HR,
+	SD,
+	PF,
+	AP,
+	RX,
+	FL,
+	COUNT
 };
 
 struct file_struct {
@@ -236,7 +297,7 @@ static inline int play_sound_effect(const std::string& name, float volume = 1.0f
 	int curr = audio_on_channel;
 	UnloadSoundAlias(audio_channels[audio_on_channel]);
 	audio_channels[audio_on_channel] = LoadSoundAlias(sound_effects[name]);
-	SetSoundVolume(audio_channels[audio_on_channel], volume);
+	SetSoundVolume(audio_channels[audio_on_channel], volume * settings_volume_sfx / 100.0f);
 	PlaySound(audio_channels[audio_on_channel]);
 	audio_on_channel = (audio_on_channel + 1) % MAX_AUDIO_CHANNELS;
 	return curr;
@@ -245,7 +306,7 @@ static inline int play_sound_effect(const std::string& name, float volume = 1.0f
 // Global variables
 
 inline constexpr int DB_VERSION = 8;
-inline constexpr std::string_view CLIENT_VERSION = "a2026.0220";
+inline constexpr std::string_view CLIENT_VERSION = "a2026.0222";
 
 inline float screen_width_ratio = (float)screen_width / 1024.0f;
 inline float screen_height_ratio = (float)screen_height / 768.0f;
@@ -302,6 +363,30 @@ inline Color c_hit_green = { 87, 227, 19, 255 };
 inline Color c_hit_blue = { 50, 188, 231, 255 };
 
 // Helper functions
+
+static inline void update_button(button_callback& b) {
+	Vector2 wh = { 1.f, 1.f };
+	if (b.sprite != SPRITE::TOTAL_COUNT) {
+		wh.x = tex[(int)b.sprite].width;
+		wh.y = tex[(int)b.sprite].height;
+	}
+	if (m1_pressed && CheckCollisionPointRec(cursor, { b.pos.x, b.pos.y, wh.x * b.scale.x, wh.y * b.scale.y })) {
+		b.func(b.id);
+	}
+}
+
+static inline void draw_button(button_callback& b) {
+	if (b.sprite != SPRITE::TOTAL_COUNT) {
+		DrawTexturePro(atlas, tex[(int)b.sprite], { b.pos.x, b.pos.y, tex[(int)b.sprite].width * b.scale.x, tex[(int)b.sprite].height * b.scale.y }, { 0.0f, 0.0f }, 0.0f, b.color);
+	}
+	else {
+		DrawRectangleV(b.pos, b.scale, b.color);
+	}
+	if (b.text != "") {
+		float text_width = MeasureTextEx(aller_r, b.text.c_str(), 48.0f * screen_height_ratio, 0).x;
+		DrawTextEx(aller_r, b.text.c_str(), { b.pos.x + b.scale.x / 2.f - text_width / 2.f, b.pos.y + b.scale.y / 8.f }, 48.0f * screen_height_ratio, 0, WHITE);
+	}
+}
 
 static inline void split_sv_fixed(std::string_view sv, std::string_view* out, int max_parts) {
 	int idx = 0;

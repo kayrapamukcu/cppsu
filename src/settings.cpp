@@ -48,57 +48,58 @@ void settings::init() {
 		initialized = true;
 	}
 
-	// Initialize buttons
+	// Initialize switchs
 
 	const float sh = screen_height_ratio;
-	buttons.clear();
-	buttons_func.clear();
+	switches.clear();
+	switches_func.clear();
 	sliders.clear();
+	sliders_func.clear();
 	textfields.clear();
 	lists.clear();
 
-	buttons.push_back({ {48 * sh, 48 * sh}, {}, 16 * sh,
+	switches.push_back({ {48 * sh, 48 * sh}, {}, 16 * sh,
 						settings_render_ingame_ui,
 						"Render ingame UI"
 		});
-	buttons.push_back({ {48 * sh, 96 * sh}, {}, 16 * sh,
+	switches.push_back({ {48 * sh, 96 * sh}, {}, 16 * sh,
 						settings_sliderend_rendering,
 						"Render slider ends"
 		});
-	buttons.push_back({ {48 * sh, 144 * sh}, {}, 16 * sh,
+	switches.push_back({ {48 * sh, 144 * sh}, {}, 16 * sh,
 						settings_render_300s,
 						"Display 300 hitresults"
 		});
-	buttons.push_back({ {48 * sh, 192 * sh}, {}, 16 * sh,
+	switches.push_back({ {48 * sh, 192 * sh}, {}, 16 * sh,
 						settings_render_fps_ms,
 						"Display FPS / frametime"
 		});
-	buttons.push_back({ {48 * sh, 240 * sh}, {}, 16 * sh,
+	switches.push_back({ {48 * sh, 240 * sh}, {}, 16 * sh,
 						settings_render_play_area,
 						"Display play area rectangle"
 		});
-	buttons.push_back({ {48 * sh, 288 * sh}, {}, 16 * sh,
+	switches.push_back({ {48 * sh, 288 * sh}, {}, 16 * sh,
 						settings_display_ur_bar,
 						"Display UR bar"
 		});
-	buttons.push_back({ {48 * sh, 336 * sh}, {}, 16 * sh,
+	switches.push_back({ {48 * sh, 336 * sh}, {}, 16 * sh,
 						settings_ignore_map_colors,
 						"Ignore map colors"
 		});
-	buttons.push_back({ {48 * sh, 384 * sh}, {}, 16 * sh,
+	switches.push_back({ {48 * sh, 384 * sh}, {}, 16 * sh,
 						settings_display_background_ingame,
 						"Display map background ingame"
 		});
-	buttons.push_back({ {48 * sh, 432 * sh}, {}, 16 * sh,
+	switches.push_back({ {48 * sh, 432 * sh}, {}, 16 * sh,
 						settings_render_key_overlay,
 						"Display key overlay"
 		});
-	buttons.push_back({ {48 * sh, 480 * sh}, {}, 16 * sh,
+	switches.push_back({ {48 * sh, 480 * sh}, {}, 16 * sh,
 						settings_ingame_mouse_buttons,
 						"Enable mouse buttons ingame"
 		});
 
-	buttons_func.push_back(gui_button_func{ {{48 * sh, 528 * sh}, {}, 16 * sh,
+	switches_func.push_back(gui_switch_func{ {{48 * sh, 528 * sh}, {}, 16 * sh,
 						settings_raw_input,
 						"Raw input"},
 						*callback_raw_input
@@ -113,17 +114,20 @@ void settings::init() {
 						settings_cursor_scale, false,
 						"Cursor size", "x"
 		});
-	sliders.push_back({ {(400) * sh, 192 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
+	sliders_func.push_back(gui_slider_func{ {{(400) * sh, 192 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
 						settings_volume_master, false,
-						"Master volume", "%"
+						"Master volume", "%" },
+						*callback_update_volume_master 
 		});
-	sliders.push_back({ {(400) * sh, 264 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
+	sliders_func.push_back(gui_slider_func{ {{(400) * sh, 264 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
 						settings_volume_music, false,
-						"Music volume", "%"
+						"Music volume", "%" },
+						*callback_update_volume_music
 		});
-	sliders.push_back({ {(400) * sh, 336 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
+	sliders_func.push_back(gui_slider_func{ {{(400) * sh, 336 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
 						settings_volume_sfx, false,
-						"Sound effects volume", "%"
+						"Sound effects volume", "%" },
+						*callback_update_volume_sound
 		});
 
 	std::vector<std::string> resolutions_text;
@@ -138,13 +142,16 @@ void settings::init() {
 						"Resolutions", resolutions_text 
 		});
 
-	for (auto& b : buttons) {
+	for (auto& b : switches) {
 		b.center = { b.pos.x + b.size / 2.0f, b.pos.y + b.size / 2.0f };
 	}
-	for (auto& b : buttons_func) {
+	for (auto& b : switches_func) {
 		b.center = { b.pos.x + b.size / 2.0f, b.pos.y + b.size / 2.0f };
 	}
 	for (auto& s : sliders) {
+		s.percentage = s.value / s.max_value;
+	}
+	for (auto& s : sliders_func) {
 		s.percentage = s.value / s.max_value;
 	}
 }
@@ -165,16 +172,20 @@ void settings::update() {
 
 	if (m1_pressed) selected_element = nullptr;
 	
-	for (auto& b : buttons) {
-		update_button(b);
-		draw_button(b);
+	for (auto& b : switches) {
+		update_switch(b);
+		draw_switch(b);
 	}
-	for (auto& b : buttons_func) {
-		update_button_func(b);
-		draw_button(b);
+	for (auto& b : switches_func) {
+		update_switch_func(b);
+		draw_switch(b);
 	}
 	for (auto& s : sliders) {
 		update_slider(s);
+		draw_slider(s);
+	}
+	for (auto& s : sliders_func) {
+		update_slider_func(s);
 		draw_slider(s);
 	}
 	for (auto& l : lists) {
@@ -198,7 +209,7 @@ void settings::callback_raw_input()
 	}
 }
 
-void settings::update_button(gui_button& b)
+void settings::update_switch(gui_switch& b)
 { // && cursor.x >= b.pos.x && cursor.x <= b.pos.x + b.size && cursor.y >= b.pos.y && cursor.y <= b.pos.x + b.size
 	if (m1_pressed && CheckCollisionPointCircle(cursor, b.center, b.size)) {
 		b.option = !b.option;
@@ -206,7 +217,7 @@ void settings::update_button(gui_button& b)
 	}
 }
 
-void settings::update_button_func(gui_button_func& b)
+void settings::update_switch_func(gui_switch_func& b)
 {
 	if (m1_pressed && CheckCollisionPointCircle(cursor, b.center, b.size)) {
 		b.func();
@@ -214,7 +225,7 @@ void settings::update_button_func(gui_button_func& b)
 	}
 }
 
-void settings::draw_button(gui_button& b)
+void settings::draw_switch(gui_switch& b)
 {
 	DrawCircleV(b.center, b.size, BLACK);
 	DrawCircleLinesV(b.center, b.size, WHITE);
@@ -222,6 +233,20 @@ void settings::draw_button(gui_button& b)
 	if (b.option)
 		DrawCircleV(b.center, b.size * 0.8f, WHITE);
 	DrawTextEx(aller_r, b.desc.c_str(), { b.pos.x + b.size * 1.8f, b.pos.y }, b.size * 1.5f, 0, WHITE);
+}
+
+void settings::callback_update_volume_master(float value)
+{
+	SetMasterVolume(value / 100.0f);
+}
+void settings::callback_update_volume_music(float value)
+{
+	SetMusicVolume(music, value / 100.0f);
+}
+void settings::callback_update_volume_sound(float value)
+{
+	for(auto& ch : audio_channels)
+	SetSoundVolume(ch, value / 100.0f);
 }
 
 void settings::update_slider(gui_slider& s)
@@ -251,6 +276,12 @@ void settings::update_slider(gui_slider& s)
 	}
 
 	if (m1_released) s.held = false;
+}
+
+void settings::update_slider_func(gui_slider_func& s)
+{
+	update_slider(s);
+	s.func(s.value);
 }
 
 void settings::draw_slider(gui_slider& s)
@@ -316,7 +347,7 @@ void settings::draw_dropdown_list(gui_dropdown_list& b) {
 
 	Vector2 text_size = MeasureTextEx(aller_r, b.desc.c_str(), 24 * screen_height_ratio, 0);
 
-	float button_y = b.pos_dim.y + b.scroll_pos;
+	float switch_y = b.pos_dim.y + b.scroll_pos;
 	float text_x = b.pos_dim.x + (b.pos_dim.width - text_size.x) * 0.5f;
 	float text_y = b.pos_dim.y + (b.element_size - text_size.y) * 0.5f;
 
@@ -333,7 +364,7 @@ void settings::draw_dropdown_list(gui_dropdown_list& b) {
 		for (int i = 0; i < b.options.size(); i++) {
 			Vector2 text_size = MeasureTextEx(aller_r, b.options[i].c_str(), 24 * screen_height_ratio, 0);
 			float text_x = b.pos_dim.x + (b.pos_dim.width - text_size.x) * 0.5f;
-			float text_y = (i + 1) * b.element_size + button_y + (b.element_size - text_size.y) * 0.5f;
+			float text_y = (i + 1) * b.element_size + switch_y + (b.element_size - text_size.y) * 0.5f;
 			if (text_y < b.pos_dim.y + b.element_size - 4) continue;
 			DrawTextEx(aller_r, b.options[i].c_str(), { text_x, text_y }, 24 * screen_height_ratio, 0, WHITE);
 		}

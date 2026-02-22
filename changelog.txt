@@ -5,6 +5,7 @@ Known  Bugs
 (!!) Slider overdraw on red ticks
 (!!) Offset problem
 (!) Slider bodies are not transparent
+(!) Stack leniency is somewhat broken
 When importing maps in fullscreen the window doesnt show up
 Slider ticks after a reverse arrow dont show up
 
@@ -137,8 +138,19 @@ a2026.0220
 
 (+) Implemented dropdown lists on settings screen
 (+) Added a few misc. settings like cursor size
+(+) Added volume controlst
 (*) Fixed numbers on top of circles not fading in correctly
 (*) Added higher resolution images for result screen
+
+a2026.0222
+
+(+) Added pausing in game
+(+) Added submenus on song select
+(+) Mod select screen added
+(*) Fixed offset issue when skipping
+
+
+ADD 2 MODS RATECHANGE AND DIFFICULTYADJUST
 
 fix:
 map speed fucking up spinners
@@ -172,6 +184,7 @@ a benchmark button (auto mod prerequisite) would be cool
 toggleable key overlay
 some sliders end a bit too early (i think they might be missing the last point in the path), their sliderend hitsound volume is wrong, and some reverse arrows still change directions rarely. fix it (oyasumi hard has a bunch of wrong reverse arrows - maybe fix i used for perfect circle sliders is applicable here(beziers) as well - can i do this at map creation instead of ::draw though) 
 also bbydoll has some sliders that dont show up at all wtf
+weird slider head on die young NYAN diff middle part
 
 hp (toggleable) (ON HOLD)
 

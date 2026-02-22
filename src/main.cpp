@@ -84,8 +84,6 @@ int main()
 	background = LoadTextureCompat((db::fs_path / "resources" / "textures" / "default_bg.jpg").string().c_str());
 
 	auto welcome_sfx = LoadSound("resources/welcome.mp3");
-
-	music = LoadMusicStreamFromRam("resources/mus_menu.ogg");
 	
 	screen_width = (float)GetScreenWidth();
 	screen_height = (float)GetScreenHeight();
@@ -203,6 +201,7 @@ int main()
 				if (start_time + 3.56 < GetTime()) {
 					game_state = MAIN_MENU;
 					PlayMusicStream(music);
+					SetMusicVolume(music, settings_volume_music / 100.0f);
 					HideCursor();
 				}
 					
