@@ -21,6 +21,7 @@ enum class SPRITE : int {
 	SliderBody,
 	SliderBowl,
 	ReverseArrow,
+	SliderPoint,
 	Result0,
 	Result50,
 	Result100,
@@ -75,6 +76,7 @@ static constexpr struct {
 	{ "sliderbody.png",			SPRITE::SliderBody },
 	{ "bowl.png",				SPRITE::SliderBowl },
 	{ "reversearrow.png",		SPRITE::ReverseArrow },
+	{ "sliderscorepoint.png",	SPRITE::SliderPoint },
 
 	{ "hit0.png",				SPRITE::Result0 },
 	{ "hit50.png",				SPRITE::Result50 },

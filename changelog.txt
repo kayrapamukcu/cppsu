@@ -7,7 +7,7 @@ Known  Bugs
 (!) Slider bodies are not transparent
 (!) Stack leniency is somewhat broken
 When importing maps in fullscreen the window doesnt show up
-Slider ticks after a reverse arrow dont show up
+
 
 After deleting a mapset, it tries to load the deleted mp3
 
@@ -144,12 +144,18 @@ a2026.0220
 
 a2026.0222
 
+(~) Re-did slider rendering; now much faster and more accurate.
 (+) Added pausing in game
 (+) Added submenus on song select screen
 (+) Added sensitivity slider
 (+) Added mod select screen
 (+) Made mods EZ, HT, HR, DT, NC, HD functional
 (*) Fixed offset issue when skipping
+(*) Fixed spinner's middle circle not scaling with resolution
+(*) Fixed some sliders not rendering
+(*) Fixed slidertick appearance
+(*) Fixed sliderticks after a reverse arrow not showing up
+(*) Fixed sliders playing wrong sounds
 
 
 ADD 2 MODS RATECHANGE AND DIFFICULTYADJUST

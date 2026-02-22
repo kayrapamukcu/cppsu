@@ -326,6 +326,11 @@ ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
 
 				radius = std::sqrt((center.x - x1) * (center.x - x1) + (center.y - y1) * (center.y - y1));
 
+				if (abs(radius) > 1000000) { // Guard against degenerate """perfect circle""" sliders
+					shape = 'L';
+					goto process_as_linear_slider;
+				}
+
 				float start = std::atan2(p0.y - center.y, p0.x - center.x);
 				float mid = ShiftRadiansForward(std::atan2(p1.y - center.y, p1.x - center.x), start);
 				float end = ShiftRadiansForward(std::atan2(p2.y - center.y, p2.x - center.x), start);
@@ -501,7 +506,7 @@ ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
 				}
 
 				int last_repeat_time = (int)(i * total_length);
-				for (int j = 0; j < n; j++) {
+				for (int j = n-1; j >= 0; j--) {
 					auto& t = slider_ticks[j];
 					if(i % 2 == 1)
 						slider_ticks.push_back(Vector4{ t.x, t.y, 2.0f * time + (i + 1) * (float)total_length - t.z, 1 });
@@ -703,7 +708,7 @@ void ingame::object_hit(const HitObjectEntry& ho, const HitResult res) { //, boo
 	uint8_t snd_vol = ho.snd_vol;
 	if (type == SLIDER) {
 		auto& slider = sliders[ho.idx];
-		if (slider.hitsound_list.size() < slider.hitsound_index) {
+		if (slider.hitsound_list.size() > slider.hitsound_index) {
 			snd = slider.hitsound_list[slider.hitsound_index];
 			snd_vol = slider.hitsound_list_volume[slider.hitsound_index];
 			slider.hitsound_index++;
@@ -882,10 +887,6 @@ void ingame::check_hit(bool notelock_check) {
 
 void ingame::update() {
 
-	if (IsKeyPressed(KEY_Z)) {
-		std::cout << "map begin time: " << map_begin_time << ", map time: " << map_time << " , map_time_accumulator: " << map_time_accumulator << ", music time: " << GetMusicTimePlayed(music) << "\n";
-	}
-
 	if (IsKeyPressed(KEY_ESCAPE)) {
 		
 		if (!paused) {
@@ -911,13 +912,9 @@ void ingame::update() {
 
 		if (song_init == 2) {
 			if (abs(GetMusicTimePlayed(music) * 1000.0f - map_time) > 10.0f) {
+				// try to resync
 				std::cout << "Music desynced - trying to resync; difference of " << abs(GetMusicTimePlayed(music) * 1000.0f - map_time) << "\n";
-				std::cout << "map begin time: " << map_begin_time << ", map time: " << map_time << " , map_time_accumulator: " << map_time_accumulator << ", music time: " << GetMusicTimePlayed(music) << "\n";
 
-				// 
-				// map_time = map_begin_time + GetMusicTimePlayed(music) * 1000.0f;
-				// SeekMusicStream(music, map_time / 1000.0f);
-				// UpdateMusicStream(music);
 				map_time_accumulator = 0;
 				map_begin_time = GetMusicTimePlayed(music) * 1000.0f;
 			}
@@ -1149,6 +1146,11 @@ void ingame::update() {
 								if (max_combo < combo) max_combo = combo;
 								goto slider_tick_check_continue;
 							}
+
+							if (s.slider_ticks[s.on_slider_tick].w == 2) {
+
+							}
+
 						}
 						combo_break();
 					slider_tick_check_continue:
@@ -1390,7 +1392,7 @@ void ingame::draw() {
 		DrawCircleV(Vector2{ x, y }, 256 * playfield_scale, { 64, 128, 255, alpha });
 		auto radius = (map_time < ho.time) ? 256 * playfield_scale : 240 * playfield_scale * (ho.end_time - map_time) / (ho.end_time - ho.time) + 16;
 		DrawCircleLinesV(Vector2{ x, y }, radius, { 255, 255, 255, alpha });
-		DrawCircleV(Vector2{ x, y }, 16, { 255, 255, 255, alpha });
+		DrawCircleV(Vector2{ x, y }, 16 * playfield_scale, { 255, 255, 255, alpha });
 
 		// draw spinner completion text
 		auto text_length = MeasureTextEx(aller_b, ("RPM: " + std::to_string((int)(sp.rpm * map_speed))).c_str(), 48.0f * playfield_scale, 1.0f).x;
@@ -1445,69 +1447,110 @@ void ingame::draw() {
 			int indextoRender = (s.path.size() > 1) ? 1 : 0;
 			int fix_mult = 0;
 
-			DrawTexturePro(atlas, tex[(int)SPRITE::SliderBowl], dest, origin, s.path[indextoRender].z - 180.0f, slider_body_color);
-			DrawTexturePro(atlas, tex[(int)SPRITE::SliderBowl], dest, origin, s.path[indextoRender].z - 180.0f, slider_body_color);
+			if (s.slider_type == 'P') {
+				if (s.path[0].z < s.path[1].z) fix_mult = 1;
+			}
+			DrawTexturePro(atlas, tex[(int)SPRITE::SliderBowl], dest, origin, fix_mult * 180.0f + s.path[indextoRender].z - 180.0f, slider_body_color);
 
 			if(!settings_sliderend_rendering) {
 				Rectangle dest = { s.path.back().x, s.path.back().y , circle_radius * 1.84f, circle_radius * 0.94f };
 				
 				Vector2 origin = { dest.width / 2.f, dest.height / 1.02f};
-				DrawTexturePro(atlas, tex[(int)SPRITE::SliderBowl], dest, origin, s.path.back().z, slider_body_color);
-				DrawTexturePro(atlas, tex[(int)SPRITE::SliderBowl], dest, origin, s.path.back().z, slider_body_color);
+				DrawTexturePro(atlas, tex[(int)SPRITE::SliderBowl], dest, origin, fix_mult * 180.0f + s.path.back().z, slider_body_color);
 			}
+
+
 
 			Color body_color = { 80, 80, 80, (unsigned char)(alpha * 0.5f) };
-			switch (s.slider_type) {
-			case 'L': {
-				Rectangle dest = { (ho.pos.x + s.path[0].x) / 2, (ho.pos.y + s.path[0].y) / 2, circle_radius * 1.84f, s.length };
-				Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
+			
+			Rectangle slider_body_src = tex[(int)SPRITE::SliderBody];
+			float u_left = slider_body_src.x / (float)atlas.width;
+			float u_right = (slider_body_src.x + slider_body_src.width) / (float)atlas.width;
+			float v_mid = (slider_body_src.y + slider_body_src.height / 2.0f) / (float)atlas.height;
+			float radius = circle_radius * 0.92f;
 
-				DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, s.path[0].z, slider_body_color);
-				break;
-			}
-			case 'P': {
-				for (size_t i = 1; i < s.path.size(); ++i) {
-					Rectangle dest = { s.path[i - 1].x, s.path[i - 1].y, circle_radius * 1.84f, slider_draw_resolution };
-					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-					DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, s.path[i - 1].z, slider_body_color);
+			// fix for linear sliders
+			auto get_pt = [&](int idx) -> Vector2 {
+				if (s.path.size() == 1) {
+					return idx == 0 ? Vector2{ ho.pos.x, ho.pos.y } : Vector2{ s.path[0].x, s.path[0].y };
+				}
+				return { s.path[idx].x, s.path[idx].y };
+				};
+			int path_len = (s.path.size() == 1) ? 2 : s.path.size();
+
+			// 3. Draw Continuous Triangle Strip
+			rlSetTexture(atlas.id);
+			rlBegin(RL_TRIANGLES);
+			rlColor4ub(slider_body_color.r, slider_body_color.g, slider_body_color.b, slider_body_color.a);
+
+			Vector2 prev_left = { 0 }, prev_right = { 0 };
+
+			for (int i = 0; i < path_len; i++) {
+				Vector2 current = get_pt(i);
+				Vector2 t; // Tangent vector
+
+				// Calculate tangent based on neighbors
+				if (i == 0) {
+					Vector2 next = get_pt(1);
+					t = { next.x - current.x, next.y - current.y };
+				}
+				else if (i == path_len - 1) {
+					Vector2 prev = get_pt(i - 1);
+					t = { current.x - prev.x, current.y - prev.y };
+				}
+				else {
+					Vector2 prev = get_pt(i - 1);
+					Vector2 next = get_pt(i + 1);
+					Vector2 t1 = { current.x - prev.x, current.y - prev.y };
+					Vector2 t2 = { next.x - current.x, next.y - current.y };
+
+					float l1 = std::sqrt(t1.x * t1.x + t1.y * t1.y);
+					float l2 = std::sqrt(t2.x * t2.x + t2.y * t2.y);
+					if (l1 > 0) { t1.x /= l1; t1.y /= l1; }
+					if (l2 > 0) { t2.x /= l2; t2.y /= l2; }
+					t = { t1.x + t2.x, t1.y + t2.y };
 				}
 
-				break;
-			}
-			case 'C':
-			case 'B': {
-				uint32_t indexToCheck = 0;
-				for (size_t i = 0; i < s.corners.size(); i++) {
+				float tLen = std::sqrt(t.x * t.x + t.y * t.y);
+				if (tLen > 0) { t.x /= tLen; t.y /= tLen; }
 
-					indexToCheck += (int)s.corners[i].z;
+				Vector2 n = { -t.y, t.x }; // Normal vector
+				float miter = 1.0f;
 
-					float ang1 = ShiftAngleForward(s.path[indexToCheck].z);
-					float ang2 = ShiftAngleForward(s.path[indexToCheck - 1].z);
-
-					float inter_x = (s.path[indexToCheck].x + s.path[indexToCheck - 1].x) / 2.f;
-					float inter_y = (s.path[indexToCheck].y + s.path[indexToCheck - 1].y) / 2.f;
-
-					if(ang2 < ang1) {
-						std::swap(ang1, ang2);
+				// Calculate Miter joint expansion for sharp corners
+				if (i > 0 && i < path_len - 1) {
+					Vector2 prev = get_pt(i - 1);
+					Vector2 t1 = { current.x - prev.x, current.y - prev.y };
+					float l1 = std::sqrt(t1.x * t1.x + t1.y * t1.y);
+					if (l1 > 0) {
+						Vector2 n1 = { -t1.y / l1, t1.x / l1 };
+						float dot = n.x * n1.x + n.y * n1.y;
+						if (dot > 0.1f) miter = 1.0f / dot;
+						if (miter > 1.5f) miter = 1.5f; // Clamp to prevent wild spikes on V-shapes
 					}
-					for (float j = ang1; j < ang2; j += 5) {
-						Rectangle dest = { inter_x, inter_y, circle_radius * 1.84f, slider_draw_resolution };
-						Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-
-						DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, j, slider_body_color);
-					}
-				}
-				for (size_t i = 1; i < s.path.size(); ++i) {
-					Rectangle dest = {s.path[i - 1].x, s.path[i - 1].y, circle_radius * 1.84f, slider_draw_resolution };
-					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-					DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, s.path[i - 1].z, slider_body_color);
 				}
 
-				break;
+				Vector2 curr_left = { current.x + n.x * radius * miter, current.y + n.y * radius * miter };
+				Vector2 curr_right = { current.x - n.x * radius * miter, current.y - n.y * radius * miter };
+
+				if (i > 0) {
+					// Triangle 1
+					rlTexCoord2f(u_left, v_mid);  rlVertex2f(prev_left.x, prev_left.y);
+					rlTexCoord2f(u_left, v_mid);  rlVertex2f(curr_left.x, curr_left.y);
+					rlTexCoord2f(u_right, v_mid); rlVertex2f(prev_right.x, prev_right.y);
+
+					// Triangle 2
+					rlTexCoord2f(u_left, v_mid);  rlVertex2f(curr_left.x, curr_left.y);
+					rlTexCoord2f(u_right, v_mid); rlVertex2f(curr_right.x, curr_right.y);
+					rlTexCoord2f(u_right, v_mid); rlVertex2f(prev_right.x, prev_right.y);
+				}
+
+				prev_left = curr_left;
+				prev_right = curr_right;
 			}
-			default:
-				break;
-			}
+
+			rlEnd();
+			rlSetTexture(0);
 
 			if (ho.time < map_time) // draw slider ball
 			DrawCircleV({ s.slider_ball_pos }, circle_radius * 0.92f, YELLOW);
@@ -1523,6 +1566,8 @@ void ingame::draw() {
 				DrawTexturePro(atlas, tex[(int)SPRITE::HitCircleOverlay], { s.path.back().x - circle_radius, s.path.back().y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, white_alpha);
 				DrawTexturePro(atlas, tex[(int)SPRITE::HitCircle], { s.path.back().x - circle_radius, s.path.back().y - circle_radius, circle_radius * 2.0f, circle_radius * 2.0f }, { 0,0 }, 0.0f, circle_color);
 			}
+
+			
 					
 			// draw reverse arrows
 			if (s.repeat_left > 1) {
@@ -1568,7 +1613,7 @@ void ingame::draw() {
 				if (st.w > 0.0f) continue; // already hit or reverse arrow
 				
 				if (st.z < map_time + approach_rate_milliseconds * 0.75f + ind_st * tick_draw_delay) {
-					DrawCircleV({ st.x, st.y }, circle_radius * 0.25f, white_alpha_nonfade);
+					DrawTexturePro(atlas, tex[(int)SPRITE::SliderPoint], { st.x - circle_radius * 0.125f, st.y - circle_radius * 0.125f, circle_radius * 0.25f, circle_radius * 0.25f}, { 0.0f, 0.0f }, 0.0f, white_alpha_nonfade);
 				}
 				else {
 					break;

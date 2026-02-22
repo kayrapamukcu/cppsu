@@ -94,8 +94,7 @@ void result_screen::draw() {
 	if (results.perfect_combo)
 		DrawTexturePro(atlas, tex[(int)SPRITE::PerfectComboText], { 150.0f * sh, 616.0f * sh, tex[(int)SPRITE::PerfectComboText].width * sh, tex[(int)SPRITE::PerfectComboText].height * sh }, { 0, 0 }, 0.0f, WHITE);
 
-	DrawTexturePro(atlas, rank_to_draw, { screen_width - 344.0f * sh, 120.0f * sh, 2 * rank_to_draw.width * sh, 2 * rank_to_draw.height * sh }, { 0, 0 }, 0.0f, WHITE);
-
+	DrawTexturePro(atlas, rank_to_draw, { screen_width - 356.0f * sh, 120.0f * sh, 2 * rank_to_draw.width * sh, 2 * rank_to_draw.height * sh }, { 0, 0 }, 0.0f, WHITE);
 
 	DrawRectangleV({ 220 * sh, 620 * sh }, { 240 * sh, 84 * sh }, { 0, 0, 0, 210 });
 	DrawTextEx(aller_r, ur_text.c_str(), { 220 * sh, 620 * sh }, 20 * sh, 0, WHITE);
@@ -105,7 +104,7 @@ void result_screen::draw() {
 	DrawTextEx(aller_l, played_text.c_str(), { 4 * sh, 64 * sh}, 24 * sh, 0, WHITE);
 	DrawTextEx(aller_l, results.beatmap_header.c_str(), { 4 * sh, 4 * sh}, 36 * sh, 0, WHITE);
 	DrawTextEx(aller_l, results.beatmap_header_2.c_str(), { 4 * sh, 40 * sh }, 24 * sh, 0, WHITE);
-	DrawTextEx(aller_r, "Ranking", { screen_width - 344.0f * sh, 4 * sh}, 108 * sh, 0, WHITE);
+	DrawTextEx(aller_r, "Ranking", { screen_width - 356.0f * sh, 4 * sh}, 108 * sh, 0, WHITE);
 }
 
 void result_screen::update() {

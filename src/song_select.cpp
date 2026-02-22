@@ -483,15 +483,40 @@ void song_select::draw() {
 	);
 	DrawTextExScaled(aller_l, stats_2.c_str(), { 4, 88 }, 24, 0, WHITE);
 
+	Color map_stats_c = WHITE;
+	float display_cs = selected_map.cs;
+	float display_ar = selected_map.ar;
+	float display_od = selected_map.od;
+	float display_hp = selected_map.hp;
+
+	if (selected_mods[(int)MODS::HR]) {
+		map_stats_c = { 246, 154, 161, 255 };
+		display_cs *= 1.3f;
+		display_ar *= 1.4f;
+		display_od *= 1.4f;
+		display_hp *= 1.4f;
+		if (display_cs > 10.0f) display_cs = 10.0f;
+		if (display_ar > 10.0f) display_ar = 10.0f;
+		if (display_od > 10.0f) display_od = 10.0f;
+		if (display_hp > 10.0f) display_hp = 10.0f;
+	}
+	else if (selected_mods[(int)MODS::EZ]) {
+		map_stats_c = { 173, 216, 230, 255 };
+		display_cs *= 0.5f;
+		display_ar *= 0.5f;
+		display_od *= 0.5f;
+		display_hp *= 0.5f;
+	}
+
 	std::string stats_3 = std::format(
 		"CS:{}  AR:{}  OD:{}  HP:{}  Stars:{}",
-		format_floats(selected_map.cs),
-		format_floats(selected_map.ar),
-		format_floats(selected_map.od),
-		format_floats(selected_map.hp),
+		format_floats(display_cs),
+		format_floats(display_ar),
+		format_floats(display_od),
+		format_floats(display_hp),
 		format_floats(selected_map.star_rating)
 	);
-	DrawTextExScaled(aller_r, stats_3.c_str(), { 4,112 }, 18, 0, WHITE);
+	DrawTextExScaled(aller_r, stats_3.c_str(), { 4,112 }, 18, 0, map_stats_c);
 
 	DrawRectangleRec({ 0, 684 * screen_height_ratio, screen_width, screen_height * 0.14f }, BLACK);
 
