@@ -19,6 +19,7 @@ enum class SPRITE : int {
 	HitCircleOverlay,
 	ApproachCircle,
 	SliderBody,
+	SliderBowl,
 	ReverseArrow,
 	Result0,
 	Result50,
@@ -72,7 +73,9 @@ static constexpr struct {
 	{ "hitcircleoverlay.png",	SPRITE::HitCircleOverlay },
 	{ "approachcircle.png",		SPRITE::ApproachCircle },
 	{ "sliderbody.png",			SPRITE::SliderBody },
+	{ "bowl.png",				SPRITE::SliderBowl },
 	{ "reversearrow.png",		SPRITE::ReverseArrow },
+
 	{ "hit0.png",				SPRITE::Result0 },
 	{ "hit50.png",				SPRITE::Result50 },
 	{ "hit100.png",				SPRITE::Result100 },

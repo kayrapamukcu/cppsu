@@ -89,9 +89,11 @@ struct TimingPoints {
 
 class ingame {
 public:
-	ingame(file_struct map);
+	ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods);
 	void update();
 	void draw();
+
+	
 private:
 	inline void object_hit(const HitObjectEntry& pos, const HitResult res);
 	inline void recalculate_score_acc(const HitResult res);
@@ -122,13 +124,16 @@ private:
 	std::deque<std::tuple<Color, float, float>> ur_bar_info; // color, offset, time remaining
 
 	ComboResult last_combo_result = C_GEKI;
-
+	std::array<bool, (int)MODS::COUNT> mods;
 	float circle_radius = 200.0f;
 	float slider_resolution = 4.0f;
 	float slider_draw_resolution = slider_resolution * 2.5f * screen_scale;
 	float accuracy = 100.0f;
 	float tick_draw_delay = 40.0f;
 	float spinner_rotation_ratio = 0.0f;
+
+	float scaled_playfield_size_w = 512.0f * playfield_scale;
+	float scaled_playfield_size_h = 384.0f * playfield_scale;
 
 	uint32_t score = 0;
 	uint32_t combo = 0;

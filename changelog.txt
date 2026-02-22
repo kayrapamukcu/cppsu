@@ -145,8 +145,10 @@ a2026.0220
 a2026.0222
 
 (+) Added pausing in game
-(+) Added submenus on song select
-(+) Mod select screen added
+(+) Added submenus on song select screen
+(+) Added sensitivity slider
+(+) Added mod select screen
+(+) Made mods EZ, HT, HR, DT, NC, HD functional
 (*) Fixed offset issue when skipping
 
 

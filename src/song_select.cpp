@@ -77,7 +77,7 @@ void song_select::enter_game(file_struct map) {
 	scroll_speed = 0.0f;
 	StopMusicStream(music);
 	game_state = INGAME;
-	g_ingame = new ingame(map);
+	g_ingame = new ingame(map, selected_mods);
 }
 
 void song_select::init(bool alreadyInitialized) {
@@ -150,15 +150,30 @@ void song_select::init(bool alreadyInitialized) {
 		{352 * sh, 325 * sh}, {sh, sh},
 		*callback_change_mods, (int)MODS::HR, *callback_draw_mods, "", WHITE
 		});
+	SPRITE spr_option = SPRITE::ModSD;
+	MODS mod_option = MODS::SD;
+
+	if (selected_mods[(int)MODS::PF]) {
+		spr_option = SPRITE::ModPF;
+		mod_option = MODS::PF;
+	}
 	buttons_submenu_mods.push_back({
-		SPRITE::ModSD,
+		spr_option,
 		{458 * sh, 325 * sh}, {sh, sh},
-		*callback_change_mods, (int)MODS::SD, *callback_draw_mods, "", WHITE
+		*callback_change_mods, (int)mod_option, *callback_draw_mods, "", WHITE
 		});
+	spr_option = SPRITE::ModDT;
+	mod_option = MODS::DT;
+
+	if (selected_mods[(int)MODS::NC]) {
+		spr_option = SPRITE::ModNC;
+		mod_option = MODS::NC;
+	}
+
 	buttons_submenu_mods.push_back({
-		SPRITE::ModDT,
+		spr_option,
 		{564 * sh, 325 * sh}, {sh, sh},
-		*callback_change_mods, (int)MODS::DT, *callback_draw_mods, "", WHITE
+		*callback_change_mods, (int)mod_option, *callback_draw_mods, "", WHITE
 		});
 	buttons_submenu_mods.push_back({
 		SPRITE::ModHD,
@@ -285,10 +300,21 @@ void song_select::callback_change_mods(int i)
 
 	
 	// calculate score mult. 
-	
 	for (int i = 0; i < selected_mods.size(); i++) {
 		if (selected_mods[i]) {
 			score_multiplier *= std::get<2>(mod_info[i]);
+		}
+	}
+
+	// create mod string
+	selected_mods_string.clear();
+	for (int i = 0; i < selected_mods.size(); i++) {
+		
+		if (selected_mods[i]) {
+			if (selected_mods_string != "") {
+				selected_mods_string += ",";
+			}
+			selected_mods_string += std::get<3>(mod_info[i]);
 		}
 	}
 }
@@ -383,6 +409,7 @@ void song_select::update() {
 void song_select::draw() {
 	if (map_list.empty()) return;
 	DrawTextureCompatPro(background, { 0,0, screen_width, screen_height }, WHITE);
+	DrawRectangleRec({ 0, 0, screen_width, screen_height }, { 0, 0, 0, 100 });
 
 	double pos_idx = std::clamp(current_position, 0.0, (double)max_base);
 
@@ -472,15 +499,24 @@ void song_select::draw() {
 		draw_button(b);
 	}
 
+	DrawTextEx(aller_l, selected_mods_string.c_str(), { 106 * screen_height_ratio, 642 * screen_height_ratio }, 48.0f * screen_height_ratio, 0, { 200, 200, 200, 180 });
+
 	switch (submenu) {
 	case S_SUBMENU::MODS: {
 		DrawRectangleRec({ 0, 0, screen_width, screen_height }, { 0, 0, 0, 200 });
 
 		std::snprintf(score_str, sizeof(score_str), "%.2f", score_multiplier);
+		Color score_color = WHITE;
+		if (score_multiplier > 1.0f) {
+			score_color = GREEN;
+		}
+		else if (score_multiplier < 1.0f) {
+			score_color = RED;
+		}
 		std::string score_text = "Score Multiplier: " + std::string(score_str) + "x";
 		float score_width = MeasureTextEx(aller_r, score_text.c_str(), 48.0f * screen_height_ratio, 0).x;
 
-		DrawTextEx(aller_l, score_text.c_str(), { screen_width / 2.f - score_width / 2.f, 153.f * screen_height_ratio }, 48.0f * screen_height_ratio, 0.0f, WHITE);
+		DrawTextEx(aller_l, score_text.c_str(), { screen_width / 2.f - score_width / 2.f, 153.f * screen_height_ratio }, 48.0f * screen_height_ratio, 0.0f, score_color);
 		DrawTextEx(aller_r, "Difficulty Reduction", { 40.f * screen_height_ratio, 245.f * screen_height_ratio }, 36.0f * screen_height_ratio, 0, GREEN);
 		DrawTextEx(aller_r, "Difficulty Increase", { 40.f * screen_height_ratio, 341.f * screen_height_ratio }, 36.0f * screen_height_ratio, 0, RED);
 		DrawTextEx(aller_r, "Special", { 40.f * screen_height_ratio, 437.f * screen_height_ratio }, 36.0f * screen_height_ratio, 0, WHITE);
@@ -502,5 +538,7 @@ void song_select::draw() {
 		DrawRectangleRec({ 0, 0, screen_width, screen_height }, { 0, 0, 0, 200 });
 		break;
 	}
+
+	
 }
 

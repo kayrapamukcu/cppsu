@@ -37,7 +37,7 @@ class song_select {
 			std::tuple{ MODS::PF, "PF", 1.0f, "Perfect"},
 			std::tuple{ MODS::AP, "AP", 0.0f, "AutoPilot"},
 			std::tuple{ MODS::RX, "RX", 0.0f, "Relax"},
-			std::tuple{ MODS::FL, "FL", 1.12, "Flashlight"}
+			std::tuple{ MODS::FL, "FL", 1.12f, "Flashlight"}
 		};
 
 		static std::vector<file_struct> map_list;
@@ -46,7 +46,6 @@ class song_select {
 		static float entry_row_height;
 		static double current_position;
 		static float scroll_speed;
-	
 		
 		static int map_list_size;
 		static int selected_mapset;
@@ -65,7 +64,7 @@ class song_select {
 
 		static inline std::array<bool, (int)MODS::COUNT> selected_mods;
 		static inline char score_str[8];
-
+		static inline std::string selected_mods_string;
 		static inline std::vector<button_callback> buttons_submenu_none;
 		static inline std::vector<button_callback> buttons_submenu_mods;
 		static inline std::vector<button_callback> buttons_submenu_beatmap;

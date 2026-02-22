@@ -40,6 +40,14 @@
 	"spriteSourceSize": {"x":0,"y":0,"w":96,"h":64},
 	"sourceSize": {"w":96,"h":64}
 },
+"bowl.png":
+{
+	"frame": {"x":699,"y":0,"w":107,"h":56},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":107,"h":56},
+	"sourceSize": {"w":107,"h":56}
+},
 "cursor.png":
 {
 	"frame": {"x":257,"y":121,"w":76,"h":76},
@@ -114,7 +122,7 @@
 },
 "hit50.png":
 {
-	"frame": {"x":699,"y":0,"w":71,"h":57},
+	"frame": {"x":806,"y":0,"w":71,"h":57},
 	"rotated": false,
 	"trimmed": false,
 	"spriteSourceSize": {"x":0,"y":0,"w":71,"h":57},
@@ -122,7 +130,7 @@
 },
 "hit100.png":
 {
-	"frame": {"x":770,"y":0,"w":97,"h":57},
+	"frame": {"x":877,"y":0,"w":97,"h":57},
 	"rotated": false,
 	"trimmed": false,
 	"spriteSourceSize": {"x":0,"y":0,"w":97,"h":57},
@@ -447,6 +455,6 @@
 	"format": "RGBA8888",
 	"size": {"w":978,"h":842},
 	"scale": "1",
-	"smartupdate": "$TexturePacker:SmartUpdate:dd4319829cc3c4e06ab53b815a7511ad:9a8af19102a9b0fec19bbe6826d74771:33a31c0f183b589f7883b9e0cc44a338$"
+	"smartupdate": "$TexturePacker:SmartUpdate:a5511a207f458ee8fecb42c7f4775e36:c4304e15564629d451fded21040db693:33a31c0f183b589f7883b9e0cc44a338$"
 }
 }

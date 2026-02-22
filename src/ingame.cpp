@@ -7,8 +7,38 @@
 #include "result_screen.hpp"
 #include "globals.hpp"
 
-ingame::ingame(file_struct map) {
+ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
+	mods = sel_mods;
 	map_info = map;
+
+	// apply mods
+	if (mods[(int)MODS::HT]) {
+		map_speed *= 0.75f;
+	}
+
+	if (mods[(int)MODS::DT] || mods[(int)MODS::NC]) {
+		map_speed *= 1.5f;
+	}
+
+	if (mods[(int)MODS::EZ]) {
+		map_info.ar /= 2.f;
+		map_info.od /= 2.f;
+		map_info.hp /= 2.f;
+		map_info.cs /= 2.f;
+	}
+
+	if (mods[(int)MODS::HR]) {
+		map_info.ar *= 1.4f;
+		map_info.od *= 1.4f;
+		map_info.hp *= 1.4f;
+		map_info.cs *= 1.3f;
+
+		map_info.ar = std::clamp(map_info.ar, 0.f, 10.0f);
+		map_info.od = std::clamp(map_info.od, 0.f, 10.0f);
+		map_info.hp = std::clamp(map_info.hp, 0.f, 10.0f);
+		map_info.cs = std::clamp(map_info.cs, 0.f, 10.0f);
+	}
+
 	hit_window_300 = (int)(80.0f - 6.0f * map_info.od);
 	hit_window_100 = (int)(140.0f - 8.0f * map_info.od);
 	hit_window_50 = (int)(200.0f - 10.0f * map_info.od);
@@ -152,6 +182,9 @@ ingame::ingame(file_struct map) {
 
 			x *= playfield_scale;
 			y *= playfield_scale;
+
+			if (mods[(int)MODS::HR]) y = scaled_playfield_size_h - y;
+
 			x += playfield_offset_x;
 			y += playfield_offset_y;
 
@@ -184,6 +217,9 @@ ingame::ingame(file_struct map) {
 			to_float(parts[1], y);
 			x *= playfield_scale;
 			y *= playfield_scale;
+
+			if (mods[(int)MODS::HR]) y = scaled_playfield_size_h - y;
+
 			x += playfield_offset_x;
 			y += playfield_offset_y;
 
@@ -203,7 +239,12 @@ ingame::ingame(file_struct map) {
 						float x, y;
 						to_float(pair.substr(0, colon), x);
 						to_float(pair.substr(colon + 1), y);
-						points.push_back({ x * playfield_scale + playfield_offset_x, y * playfield_scale + playfield_offset_y });
+
+						y *= playfield_scale;
+
+						if (mods[(int)MODS::HR]) y = scaled_playfield_size_h - y;
+
+						points.push_back({ x * playfield_scale + playfield_offset_x, y + playfield_offset_y });
 					}
 				}
 
@@ -937,9 +978,15 @@ void ingame::update() {
 				RANKS rank = RANK_D;
 				int all_objects = hit300s + hit100s + hit50s + misses;
 
-				if (accuracy == 100.0f) rank = RANK_X;
+				if (accuracy == 100.0f) {
+					if (mods[(int)MODS::HD] || mods[(int)MODS::FL]) rank = RANK_XH;
+					else rank = RANK_X;
+				}
 				else if (hit300s >= all_objects * 0.9f) {
-					if (misses == 0 && hit50s <= all_objects * 0.01f) rank = RANK_S;
+					if (misses == 0 && hit50s <= all_objects * 0.01f) {
+						if (mods[(int)MODS::HD] || mods[(int)MODS::FL]) rank = RANK_SH;
+						else rank = RANK_S;
+					}
 					else rank = RANK_A;
 				}
 				else if (hit300s >= all_objects * 0.8f) {
@@ -1358,15 +1405,25 @@ void ingame::draw() {
 		auto& ho = hit_objects[i];
 
 		unsigned char alpha = (unsigned char)std::clamp(255.0f * ((map_time - (ho.time - approach_rate_milliseconds)) / (0.666f * approach_rate_milliseconds)), 0.0f, 255.0f);
+		float progress = 1.0f;
+		if (mods[(int)MODS::HD]) {
+			progress = 3.0f * float(ho.time - map_time) / (float)approach_rate_milliseconds - 0.5f;
+			progress = std::clamp(progress, 0.0f, 1.0f);
+		}
+
 		float approach_scale = std::max(0.0f, (ho.time - map_time)) / approach_rate_milliseconds * circle_radius * 3.0f + circle_radius * 0.94f;
 		Color color = hit_colors[ho.color_idx];
-		color.a = alpha;
-		Color white_alpha = { 255, 255, 255, alpha };
-		Color circle_color = { color.r, color.g, color.b, (unsigned char)(alpha * 0.8f) };
+		color.a = alpha * progress;
+		Color white_alpha_nonfade = { 255, 255, 255, alpha };
+		Color white_alpha = { 255, 255, 255, alpha * progress };
+		Color slider_body_color = { 255, 255, 255, alpha };
+		Color circle_color = { color.r, color.g, color.b, (unsigned char)(progress * alpha * 0.8f) };
 
 		switch (ho.type) {
 		case CIRCLE: {
-			DrawTexturePro(atlas, tex[(int)SPRITE::ApproachCircle], {ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2}, {0,0}, 0.0f, color);
+			if (!mods[(int)MODS::HD]) {
+				DrawTexturePro(atlas, tex[(int)SPRITE::ApproachCircle], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
+			}
 			DrawTexturePro(atlas, tex[(int)SPRITE::HitCircleOverlay], {ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2}, {0,0}, 0.0f, white_alpha);
 			DrawTexturePro(atlas, tex[(int)SPRITE::HitCircle], {ho.pos.x - circle_radius, ho.pos.y - circle_radius, circle_radius * 2, circle_radius * 2}, {0,0}, 0.0f, circle_color);
 			DrawTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), { ho.pos.x - MeasureTextEx(aller_r, std::to_string(ho.combo_idx).c_str(), circle_radius * 1.2f, 0).x / 2.0f, ho.pos.y - circle_radius * 0.6f }, circle_radius * 1.2f, 0, white_alpha);
@@ -1374,24 +1431,29 @@ void ingame::draw() {
 		}
 		case SLIDER: {
 			auto& s = sliders[ho.idx];
-			DrawTexturePro(atlas, tex[(int)SPRITE::ApproachCircle], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
-			
-			// todo : optimize by having a circle texture instead of doing this
-			for (float j = 0; j < 180; j += 10) {
-				Rectangle dest = { ho.pos.x, ho.pos.y, circle_radius * 1.84f, slider_draw_resolution };
-				Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-
-				DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, j, white_alpha);
+			if (!mods[(int)MODS::HD])
+				DrawTexturePro(atlas, tex[(int)SPRITE::ApproachCircle], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
+			else {
+				float slider_progress = 2.0f * float(ho.end_time - map_time) / (float)approach_rate_milliseconds - 0.5f;
+				slider_progress = std::clamp(slider_progress, 0.0f, 1.0f);
+				slider_body_color = { 255, 255, 255, unsigned char(alpha * slider_progress) };
 			}
 
-			if(!settings_sliderend_rendering) {
-				// todo : optimize by having a circle texture instead of doing this
-				for (float j = s.path.back().z - 180; j < s.path.back().z; j += 10) {
-					Rectangle dest = { s.path.back().x, s.path.back().y, circle_radius * 1.84f, slider_draw_resolution };
-					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
+			Rectangle dest = { ho.pos.x, ho.pos.y , circle_radius * 1.84f, circle_radius * 0.94f };
+			Vector2 origin = { dest.width / 2.f, dest.height / 1.02f };
 
-					DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, j, white_alpha);
-				}
+			int indextoRender = (s.path.size() > 1) ? 1 : 0;
+			int fix_mult = 0;
+
+			DrawTexturePro(atlas, tex[(int)SPRITE::SliderBowl], dest, origin, s.path[indextoRender].z - 180.0f, slider_body_color);
+			DrawTexturePro(atlas, tex[(int)SPRITE::SliderBowl], dest, origin, s.path[indextoRender].z - 180.0f, slider_body_color);
+
+			if(!settings_sliderend_rendering) {
+				Rectangle dest = { s.path.back().x, s.path.back().y , circle_radius * 1.84f, circle_radius * 0.94f };
+				
+				Vector2 origin = { dest.width / 2.f, dest.height / 1.02f};
+				DrawTexturePro(atlas, tex[(int)SPRITE::SliderBowl], dest, origin, s.path.back().z, slider_body_color);
+				DrawTexturePro(atlas, tex[(int)SPRITE::SliderBowl], dest, origin, s.path.back().z, slider_body_color);
 			}
 
 			Color body_color = { 80, 80, 80, (unsigned char)(alpha * 0.5f) };
@@ -1400,14 +1462,14 @@ void ingame::draw() {
 				Rectangle dest = { (ho.pos.x + s.path[0].x) / 2, (ho.pos.y + s.path[0].y) / 2, circle_radius * 1.84f, s.length };
 				Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
 
-				DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, s.path[0].z, white_alpha);
+				DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, s.path[0].z, slider_body_color);
 				break;
 			}
 			case 'P': {
 				for (size_t i = 1; i < s.path.size(); ++i) {
 					Rectangle dest = { s.path[i - 1].x, s.path[i - 1].y, circle_radius * 1.84f, slider_draw_resolution };
 					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-					DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, s.path[i - 1].z, white_alpha);
+					DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, s.path[i - 1].z, slider_body_color);
 				}
 
 				break;
@@ -1432,13 +1494,13 @@ void ingame::draw() {
 						Rectangle dest = { inter_x, inter_y, circle_radius * 1.84f, slider_draw_resolution };
 						Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
 
-						DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, j, white_alpha);
+						DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, j, slider_body_color);
 					}
 				}
 				for (size_t i = 1; i < s.path.size(); ++i) {
 					Rectangle dest = {s.path[i - 1].x, s.path[i - 1].y, circle_radius * 1.84f, slider_draw_resolution };
 					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-					DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, s.path[i - 1].z, white_alpha);
+					DrawTexturePro(atlas, tex[(int)SPRITE::SliderBody], dest, origin, s.path[i - 1].z, slider_body_color);
 				}
 
 				break;
@@ -1477,24 +1539,24 @@ void ingame::draw() {
 					// draw both
 					Rectangle dest = { ho.pos.x, ho.pos.y, circle_radius * 2.0f, circle_radius * 2.0f };
 					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-					if (s.head_hit_checked) DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, 270.0f + s.path.back().z, white_alpha);
+					if (s.head_hit_checked) DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, 270.0f + s.path.back().z, white_alpha_nonfade);
 					dest = { s.path.back().x, s.path.back().y, circle_radius * 2.0f, circle_radius * 2.0f };
 
-					DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path[0].z, white_alpha);
+					DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path[0].z, white_alpha_nonfade);
 				}
 				else {
 					if (s.repeat_count % 2 - s.repeat_left % 2 == 0) {
 						// draw at end
 							Rectangle dest = { s.path.back().x, s.path.back().y, circle_radius * 2.0f, circle_radius * 2.0f };
 							Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-							DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path.back().z, white_alpha);
+							DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path.back().z, white_alpha_nonfade);
 					}
 					else {
 						// draw at start
 						if (s.head_hit_checked) {
 							Rectangle dest = { ho.pos.x, ho.pos.y, circle_radius * 2.0f, circle_radius * 2.0f };
 							Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-							DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path[0].z, white_alpha);
+							DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path[0].z, white_alpha_nonfade);
 						}
 					}
 				}
@@ -1506,7 +1568,7 @@ void ingame::draw() {
 				if (st.w > 0.0f) continue; // already hit or reverse arrow
 				
 				if (st.z < map_time + approach_rate_milliseconds * 0.75f + ind_st * tick_draw_delay) {
-					DrawCircleV({ st.x, st.y }, circle_radius * 0.25f, white_alpha);
+					DrawCircleV({ st.x, st.y }, circle_radius * 0.25f, white_alpha_nonfade);
 				}
 				else {
 					break;

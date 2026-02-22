@@ -110,21 +110,28 @@ void settings::init() {
 						ur_bar_size, false,
 						"UR bar size", "x"
 		});
-	sliders.push_back({ {(400) * sh, 112 * sh, 160 * sh, 32 * sh}, 0.0f, 0.2f, 4.0f, 0.01f,
+
+	sliders_func.push_back(gui_slider_func{{ {(400) * sh, 112 * sh, 160 * sh, 32 * sh}, 0.0f, 0.2f, 5.0f, 0.01f,
+						settings_mouse_sens, false,
+						"Sensitivity", "x" },
+						*callback_update_sensitivity
+		});
+
+	sliders.push_back({ {(400) * sh, 176 * sh, 160 * sh, 32 * sh}, 0.0f, 0.2f, 4.0f, 0.01f,
 						settings_cursor_scale, false,
 						"Cursor size", "x"
 		});
-	sliders_func.push_back(gui_slider_func{ {{(400) * sh, 192 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
+	sliders_func.push_back(gui_slider_func{ {{(400) * sh, 256 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
 						settings_volume_master, false,
 						"Master volume", "%" },
 						*callback_update_volume_master 
 		});
-	sliders_func.push_back(gui_slider_func{ {{(400) * sh, 264 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
+	sliders_func.push_back(gui_slider_func{ {{(400) * sh, 328 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
 						settings_volume_music, false,
 						"Music volume", "%" },
 						*callback_update_volume_music
 		});
-	sliders_func.push_back(gui_slider_func{ {{(400) * sh, 336 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
+	sliders_func.push_back(gui_slider_func{ {{(400) * sh, 400 * sh, 160 * sh, 32 * sh}, 0.0f, 0.0f, 100.0f, 1.0f,
 						settings_volume_sfx, false,
 						"Sound effects volume", "%" },
 						*callback_update_volume_sound
@@ -202,10 +209,23 @@ void settings::callback_raw_input()
 		SetMousePosition(cursor.x, cursor.y);
 		HideCursor();
 		settings_raw_input = false;
+		settings_mouse_sens = 1.0f;
+		for (auto& s : sliders_func) {
+			update_slider_func(s);
+			s.percentage = s.value / s.max_value;
+			draw_slider(s);
+		}
 	}
 	else {
 		DisableCursor();
 		settings_raw_input = true;
+	}
+}
+
+void settings::callback_update_sensitivity(float) {
+	if (!settings_raw_input) {
+		callback_raw_input();
+		notices.push_back({ "Raw input has been toggled on, as it's required for sensitivity settings to work", 7.5f });
 	}
 }
 
@@ -280,8 +300,38 @@ void settings::update_slider(gui_slider& s)
 
 void settings::update_slider_func(gui_slider_func& s)
 {
-	update_slider(s);
-	s.func(s.value);
+	if (m1_pressed && CheckCollisionPointRec(cursor, s.pos_dim)) {
+		selected_element = &s;
+		s.held = true;
+	}
+	if (selected_element == &s) {
+		if (m1_down) {
+			s.value = s.min_value + (s.max_value - s.min_value) * std::max(0.0f, std::min((cursor.x - s.pos_dim.x) / s.pos_dim.width, 1.0f));
+
+			s.value = ((float)((int)(s.value / s.fine_control_val + .5))) * s.fine_control_val;
+			s.percentage = std::max(0.0f, std::min(((s.value - s.min_value) / (s.max_value - s.min_value)), 1.0f));
+
+			s.func(s.value);
+		}
+		if (IsKeyPressed(KEY_RIGHT)) {
+			s.value += s.fine_control_val;
+			s.value = std::clamp(s.value, s.min_value, s.max_value);
+			s.percentage = std::max(0.0f, std::min(((s.value - s.min_value) / (s.max_value - s.min_value)), 1.0f));
+
+			s.func(s.value);
+		}
+		if (IsKeyPressed(KEY_LEFT)) {
+			s.value -= s.fine_control_val;
+			s.value = std::clamp(s.value, s.min_value, s.max_value);
+			s.percentage = std::max(0.0f, std::min(((s.value - s.min_value) / (s.max_value - s.min_value)), 1.0f));
+
+			s.func(s.value);
+		}
+
+	}
+
+	if (m1_released) s.held = false;
+	
 }
 
 void settings::draw_slider(gui_slider& s)

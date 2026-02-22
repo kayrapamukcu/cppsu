@@ -92,14 +92,16 @@ private:
 
 	static void callback_raw_input();
 	static void callback_update_resolution(int index);
+	static void callback_update_volume_master(float value);
+	static void callback_update_volume_music(float value);
+	static void callback_update_volume_sound(float value);
+	static void callback_update_sensitivity(float);
 
 	static void update_switch(gui_switch& b);
 	static void update_switch_func(gui_switch_func& b);
 	static void draw_switch(gui_switch& b);
 
-	static void callback_update_volume_master(float value);
-	static void callback_update_volume_music(float value);
-	static void callback_update_volume_sound(float value);
+	
 	static void update_slider(gui_slider& s);
 	static void update_slider_func(gui_slider_func& s);
 	static void draw_slider(gui_slider& s);
