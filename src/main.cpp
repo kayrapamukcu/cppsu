@@ -1,6 +1,5 @@
 #include "raylib.h"
 #include "rlgl.h"
-#include "json.hpp"
 
 #include <vector>
 #include <string>
@@ -18,8 +17,6 @@
 #include "settings.hpp"
 
 #include <GLFW/glfw3.h>
-
-using json = nlohmann::json;
 
 int main()
 {	
@@ -55,16 +52,55 @@ int main()
 	
 
 	// Load Atlas
-
 	for (int i = 0; i < (int)SPRITE::TOTAL_COUNT; ++i) {
 		tex[i] = { 0,0,0,0 };
 	}
+	{
+		std::string line;
+		atlas = LoadTexture("resources/atlas.png");
+		std::ifstream f("resources/atlas.atlas");
+		SetTextureFilter(atlas, TEXTURE_FILTER_BILINEAR);
+		bool get_going = false;
+		int on_line = 0;
+		bool img_selected = false;
+		std::string image_name;
+		while (std::getline(f, line)) {
+			chomp_cr(line);
+			if (line == "repeat:none") {
+				get_going = true;
+				continue;
+			}
+			if (get_going) {
+				if (on_line % 2 == 0) {
+					image_name = line;
+					on_line++;
+				}
+				else {
+					size_t idx = line.find(":");
+					std::string sv = line.substr(idx + 1);
+					std::string_view parts[4];
+					split_sv_fixed(sv, parts, 4);
+					float x, y, w, h;
+					to_float(parts[0], x);
+					to_float(parts[1], y);
+					to_float(parts[2], w);
+					to_float(parts[3], h);
 
-	std::ifstream f("resources/atlas_data.json");
-	json j = json::parse(f);
+					Rectangle rect = { x,y,w,h };
 
-	atlas = LoadTexture("resources/atlas.png");
-	SetTextureFilter(atlas, TEXTURE_FILTER_BILINEAR);
+					for (auto& m : atlas_map) {
+						if (image_name == m.name) {
+							tex[(int)m.id] = rect;
+							break;
+						}
+					}
+					on_line++;
+				}
+			}
+		}
+
+	}
+	/*
 	for (auto& [filename, frame] : j["frames"].items()) {
 
 		Rectangle rect = { (float)frame["frame"]["x"], (float)frame["frame"]["y"], (float)frame["frame"]["w"], (float)frame["frame"]["h"] };
@@ -75,6 +111,7 @@ int main()
 			}
 		}
 	}
+	*/
 
 	HideCursor();
 
@@ -114,6 +151,7 @@ int main()
 
 	while (!WindowShouldClose())
 	{
+		frame_time = GetFrameTime();
 		// update cursor values
 		{
 			if (settings_raw_input) {
@@ -314,7 +352,7 @@ int main()
 			DrawRectangle((int)(766.0f * screen_width_ratio), (int)(550.0f * screen_height_ratio), (int)(204.0f * screen_width_ratio), (int)(154.0f * screen_height_ratio), PURPLE);
 			DrawRectangle((int)(768.0f * screen_width_ratio), (int)(552.0f * screen_height_ratio), (int)(200.0f * screen_width_ratio), (int)(150.0f * screen_height_ratio), BLACK);
 			DrawTextExScaled(aller_r, lines.c_str(), { 772, 552 }, 18, 0, WHITE);
-			n.time_left -= GetFrameTime();
+			n.time_left -= frame_time;
 		}
 
 		// draw cursor and snap back to borders if raw input is on

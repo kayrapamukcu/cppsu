@@ -37,7 +37,9 @@ class song_select {
 			std::tuple{ MODS::PF, "PF", 1.0f, "Perfect"},
 			std::tuple{ MODS::AP, "AP", 0.0f, "AutoPilot"},
 			std::tuple{ MODS::RX, "RX", 0.0f, "Relax"},
-			std::tuple{ MODS::FL, "FL", 1.12f, "Flashlight"}
+			std::tuple{ MODS::FL, "FL", 1.12f, "Flashlight"},
+			std::tuple{ MODS::RC, "RC", 1.0f, "RateChange"},
+			std::tuple{ MODS::DA, "DA", 1.0f, "DifficultyAdjust"}
 		};
 
 		static std::vector<file_struct> map_list;

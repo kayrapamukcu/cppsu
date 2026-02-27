@@ -54,6 +54,9 @@ struct Slider {
 	std::vector<uint8_t> hitsound_list;
 	std::vector<uint8_t> hitsound_list_volume;
 	int hitsound_index;
+	std::vector<Vector2> body_left;
+	std::vector<Vector2> body_right;
+	int body_path_length = 0;
 };
 
 struct Spinner {
@@ -170,9 +173,19 @@ private:
 	bool key1_down = false;
 	bool key2_down = false;
 	float accumulated_end_time = 0;
-
+	
 	static constexpr int slider_repeat_score = 30;
 	static constexpr int slider_tick_score = 10;
 	static constexpr int spinner_spin_score = 100;
 	static constexpr int spinner_bonus_score = 1100;
+
+	Rectangle slider_body_src = tex[(int)SPRITE::SliderBody];
+	const float u_left = slider_body_src.x / (float)atlas.width;
+	const float u_right = (slider_body_src.x + slider_body_src.width) / (float)atlas.width;
+	const float v_mid = (slider_body_src.y + slider_body_src.height / 2.0f) / (float)atlas.height;
+
+	float flashlight_dim = 2.5f;
+	float flashlight_dim_target = 2.5f;
+	Vector2 flashlight_pos = { 0.f, 0.f };
+	Vector2 flashlight_pos_target = { 0.f, 0.f };
 };

@@ -177,13 +177,44 @@ void song_select::init(bool alreadyInitialized) {
 		});
 	buttons_submenu_mods.push_back({
 		SPRITE::ModHD,
-		{672 * sh, 325 * sh}, {sh, sh},
+		{670 * sh, 325 * sh}, {sh, sh},
 		*callback_change_mods, (int)MODS::HD, *callback_draw_mods, "", WHITE
 		});
 	buttons_submenu_mods.push_back({
 		SPRITE::ModFL,
-		{778 * sh, 325 * sh}, {sh, sh},
+		{776 * sh, 325 * sh}, {sh, sh},
 		*callback_change_mods, (int)MODS::FL, *callback_draw_mods, "", WHITE
+		});
+
+	buttons_submenu_mods.push_back({
+		SPRITE::ModRX,
+		{352 * sh, 421 * sh}, {sh, sh},
+		*callback_change_mods, (int)MODS::RX, *callback_draw_mods, "", WHITE
+		});
+	buttons_submenu_mods.push_back({
+		SPRITE::ModAP,
+		{458 * sh, 421 * sh}, {sh, sh},
+		*callback_change_mods, (int)MODS::AP, *callback_draw_mods, "", WHITE
+		});
+	buttons_submenu_mods.push_back({
+		SPRITE::ModSO,
+		{564 * sh, 421 * sh}, {sh, sh},
+		*callback_change_mods, (int)MODS::SO, *callback_draw_mods, "", WHITE
+		});
+	buttons_submenu_mods.push_back({
+		SPRITE::ModAT,
+		{670 * sh, 421 * sh}, {sh, sh},
+		*callback_change_mods, (int)MODS::AT, *callback_draw_mods, "", WHITE
+		});
+	buttons_submenu_mods.push_back({
+		SPRITE::ModRC,
+		{776 * sh, 421 * sh}, {sh, sh},
+		*callback_change_mods, (int)MODS::RC, *callback_draw_mods, "", WHITE
+		});
+	buttons_submenu_mods.push_back({
+		SPRITE::ModDA,
+		{882 * sh, 421 * sh}, {sh, sh},
+		*callback_change_mods, (int)MODS::DA, *callback_draw_mods, "", WHITE
 		});
 
 	buttons_submenu_mods.push_back({
@@ -242,7 +273,7 @@ void song_select::callback_change_mods(int i)
 		selected_mods[(int)MODS::HT] = false;
 		if (selected_mods[i]) {
 			selected_mods[i] = false;
-			selected_mods[i+1] = true;
+			selected_mods[(int)MODS::NC] = true;
 			// magic number time
 			buttons_submenu_mods[5].sprite = SPRITE::ModNC;
 			buttons_submenu_mods[5].id = (int)MODS::NC;
@@ -273,7 +304,7 @@ void song_select::callback_change_mods(int i)
 		selected_mods[(int)MODS::NF] = false;
 		if (selected_mods[i]) {
 			selected_mods[i] = false;
-			selected_mods[i + 1] = true;
+			selected_mods[(int)MODS::PF] = true;
 			// magic number time
 			buttons_submenu_mods[4].sprite = SPRITE::ModPF;
 			buttons_submenu_mods[4].id = (int)MODS::PF;
@@ -281,7 +312,7 @@ void song_select::callback_change_mods(int i)
 		else selected_mods[i] = !selected_mods[i];
 		break;
 	case MODS::PF:
-		selected_mods[(int)MODS::HT] = false;
+		selected_mods[(int)MODS::NF] = false;
 		selected_mods[i] = !selected_mods[i];
 		buttons_submenu_mods[4].sprite = SPRITE::ModSD;
 		buttons_submenu_mods[4].id = (int)MODS::SD;
@@ -342,12 +373,11 @@ void song_select::update() {
 		for (auto& b : buttons_submenu_none) {
 			update_button(b);
 		}
-		float dt = GetFrameTime();
 		scroll_speed += IsKeyPressed(KEY_DOWN) * 3.0f + IsKeyPressed(KEY_UP) * -3.0f;
 		scroll_speed -= GetMouseWheelMove();
-		scroll_speed *= std::max(0.0f, 1.0f - dt);
+		scroll_speed *= std::max(0.0f, 1.0f - frame_time);
 
-		current_position += scroll_speed * 0.05 * (dt * 120.0f);
+		current_position += scroll_speed * 0.05 * (frame_time * 120.0f);
 		constexpr double extra_space = 3.0f;
 		if (map_list_size > 6)
 			current_position = std::clamp(current_position, -extra_space, (double)max_base + extra_space);

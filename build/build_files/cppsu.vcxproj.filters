@@ -56,12 +56,6 @@
     <ClInclude Include="..\..\src\result_screen.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\json.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\json_fwd.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\settings.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>

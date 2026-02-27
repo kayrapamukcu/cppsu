@@ -58,6 +58,13 @@ enum class SPRITE : int {
 	ModNF,
 	ModPF,
 	ModSD,
+	ModRX,
+	ModAP,
+	ModSO,
+	ModAT,
+	ModRC,
+	ModDA,
+	FLDim,
 	Pixel,
 	ButtonMods,
 	ButtonRandom,
@@ -105,6 +112,8 @@ static constexpr struct {
 	{ "ranking-D_half.png",		SPRITE::RankD},
 	{ "back.png",				SPRITE::Back},
 
+	{ "auto.png",				SPRITE::ModAT},
+	{ "spunout.png",			SPRITE::ModSO},
 	{ "easy.png",				SPRITE::ModEZ},
 	{ "nofail.png",				SPRITE::ModNF},
 	{ "halftime.png",			SPRITE::ModHT},
@@ -114,10 +123,16 @@ static constexpr struct {
 	{ "doubletime.png",			SPRITE::ModDT},
 	{ "nightcore.png",			SPRITE::ModNC},
 	{ "hidden.png",				SPRITE::ModHD},
+	{ "autopilot.png",			SPRITE::ModAP},
+	{ "relax.png",				SPRITE::ModRX},
 	{ "flashlight.png",			SPRITE::ModFL},
+	{ "ratechange.png",			SPRITE::ModRC},
+	{ "difficultyadjust.png",	SPRITE::ModDA},
 	{ "b_mods.png",				SPRITE::ButtonMods},
 	{ "b_random.png",			SPRITE::ButtonRandom},
 	{ "b_beatmap.png",			SPRITE::ButtonBeatmapOptions},
+
+	{ "fl_dim.png",				SPRITE::FLDim},
 
 	
 	{ "whitepixel.png",			SPRITE::Pixel}
@@ -179,6 +194,8 @@ enum class MODS {
 	AP,
 	RX,
 	FL,
+	RC,
+	DA,
 	COUNT
 };
 
@@ -309,9 +326,10 @@ static inline int play_sound_effect(const std::string& name, float volume = 1.0f
 }
 
 // Global variables
+inline float frame_time = 0.0f;
 
 inline constexpr int DB_VERSION = 8;
-inline constexpr std::string_view CLIENT_VERSION = "a2026.0222";
+inline constexpr std::string_view CLIENT_VERSION = "a2026.0227";
 
 inline float screen_width_ratio = (float)screen_width / 1024.0f;
 inline float screen_height_ratio = (float)screen_height / 768.0f;

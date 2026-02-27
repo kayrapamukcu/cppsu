@@ -457,6 +457,8 @@ ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
 
 					firstSegment = false;
 				}
+				if(path.size() >= 2)
+					path[0].z = path[1].z;
 				break;
 			}
 			}
@@ -539,9 +541,75 @@ ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
 
 			hitsound_list_volume.emplace_back(timing_points[timing_point_idx].volume); // tail volume
 
-			sliders.push_back(Slider{ slider_repeat, false, false, false, false, slider_length * playfield_scale, slider_repeat, {x, y}, std::move(path), std::move(corners), std::move(slider_ticks), 0, slider_end_check_time, total_hits, 0, false, shape, hitsound_list, hitsound_list_volume, 0});
+			// build slider path left / right points
+			auto get_point = [&](int idx) -> Vector2 { // need this function cuz slider x,y isnt included in the path. basically a fix for linear sliders
+				if (path.size() == 1) {
+					return (idx == 0) ? Vector2{x, y} : Vector2{path[0].x, path[0].y};
+				}
+				return Vector2{ path[idx].x, path[idx].y };
+				};
+
+			int path_len = (path.size() == 1) ? 2 : (int)path.size();
+
+			std::vector<Vector2> body_left, body_right;
+
+			body_left.resize(path_len);
+			body_right.resize(path_len);
+
+			for (int i = 0; i < path_len; i++) {
+				Vector2 current = get_point(i);
+				Vector2 t;
+
+				// calculate tangent based on neighbors
+				if (i == 0) {
+					Vector2 next = get_point(1);
+					t = { next.x - current.x, next.y - current.y };
+				}
+				else if (i == path_len - 1) {
+					Vector2 prev = get_point(i - 1);
+					t = { current.x - prev.x, current.y - prev.y };
+				}
+				else {
+					Vector2 prev = get_point(i - 1);
+					Vector2 next = get_point(i + 1);
+					Vector2 t1 = { current.x - prev.x, current.y - prev.y };
+					Vector2 t2 = { next.x - current.x, next.y - current.y };
+
+					float l1 = std::sqrt(t1.x * t1.x + t1.y * t1.y);
+					float l2 = std::sqrt(t2.x * t2.x + t2.y * t2.y);
+					if (l1 > 0) { t1.x /= l1; t1.y /= l1; }
+					if (l2 > 0) { t2.x /= l2; t2.y /= l2; }
+					t = { t1.x + t2.x, t1.y + t2.y };
+				}
+
+				float tLen = std::sqrt(t.x * t.x + t.y * t.y);
+				if (tLen > 0) { t.x /= tLen; t.y /= tLen; }
+
+				Vector2 n = { -t.y, t.x };
+				float miter = 1.0f;
+
+				// miter joint expansion
+				if (i > 0 && i < path_len - 1) {
+					Vector2 prev = get_point(i - 1);
+					Vector2 t1 = { current.x - prev.x, current.y - prev.y };
+					float l1 = std::sqrt(t1.x * t1.x + t1.y * t1.y);
+					if (l1 > 0) {
+						Vector2 n1 = { -t1.y / l1, t1.x / l1 };
+						float dot = n.x * n1.x + n.y * n1.y;
+						if (dot > 0.1f) miter = 1.0f / dot;
+						if (miter > 1.5f) miter = 1.5f;
+					}
+				}
+
+				body_left[i] = { current.x + n.x * circle_radius * 0.92f * miter, current.y + n.y * circle_radius * 0.92f * miter };
+				body_right[i] = { current.x - n.x * circle_radius * 0.92f * miter, current.y - n.y * circle_radius * 0.92f * miter };
+			}
+
+
+			sliders.push_back(Slider{ slider_repeat, false, false, false, false, slider_length * playfield_scale, slider_repeat, {x, y}, std::move(path), std::move(corners), std::move(slider_ticks), 0, slider_end_check_time, total_hits, 0, false, shape, hitsound_list, hitsound_list_volume, 0, std::move(body_left), std::move(body_right), path_len});
 			hit_objects.push_back(HitObjectEntry{ {x, y}, time, end_time, slider_cnt, hit_color_current, hot, combo_idx, false, (uint8_t)snd, 100 });
 			slider_cnt++;
+			
 
 			break;
 		}
@@ -885,6 +953,7 @@ void ingame::check_hit(bool notelock_check) {
 	}
 }
 
+
 void ingame::update() {
 
 	if (IsKeyPressed(KEY_ESCAPE)) {
@@ -921,7 +990,7 @@ void ingame::update() {
 		}
 
 		if (on_object >= (int)hit_objects.size()) { // Check for end of map
-			accumulated_end_time += GetFrameTime();
+			accumulated_end_time += frame_time;
 
 			if (hit_objects[hit_objects.size() - 1].end_time > GetMusicTimePlayed(music) * 1000.0f + 500) {
 				StopMusicStream(music);
@@ -1017,16 +1086,19 @@ void ingame::update() {
 				song_init = 1;
 				if (map_first_object_time - 3000.0f > map_time)
 					skippable = true;
-				else song_init = 2;
+				else {
+					flashlight_dim_target = 1.0f;
+					song_init = 2;
+				}
 			}
 			break;
 		case 1: // song started playing, but map not yet begun
 			if (map_time >= map_first_object_time - 2500.0f) {
 				skippable = false;
 				song_init = 2;
+				flashlight_dim_target = 1.0f;
 			}
 			if (skippable && (IsKeyPressed(KEY_SPACE) || (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(cursor, { 4 * screen_width / 5, 4 * screen_height / 5, screen_width / 5, screen_height / 5 })))) {
-				// std::cout << "skipping\n";
 				float skip_target_time = map_first_object_time - 2500.0f - 1000.0f * map_speed;
 
 				if (skip_target_time < 0.0f) skip_target_time = 0.0f;
@@ -1035,11 +1107,11 @@ void ingame::update() {
 				SeekMusicStream(music, skip_target_time / 1000.0f);
 				UpdateMusicStream(music);
 
-				// map_begin_time = skip_target_time; // - (float)GetTime() * 1000.0f * map_speed;
-				map_begin_time = skip_target_time; //- (float)GetTime() * 1000.0f * map_speed;
+				map_begin_time = skip_target_time;
 				map_time = map_begin_time;
 				map_time_accumulator = 0;
 				skippable = false;
+				flashlight_dim_target = 1.0f;
 				song_init = 2;
 				std::cout << "SKIPPED! GetTimePlayed: " << GetMusicTimePlayed(music) * 1000.0f << ", map_time: " << map_time;
  			}
@@ -1249,7 +1321,7 @@ void ingame::update() {
 
 				auto& sp = spinners[ho.idx];
 
-				float dt = GetFrameTime();
+				float dt = frame_time;
 
 				if (key1_down || key2_down) {
 					auto toAngle = [&](Vector2 p) { return atan2f(p.y - (192 * playfield_scale + playfield_offset_y), p.x - (256 * playfield_scale + playfield_offset_x)); };
@@ -1433,8 +1505,10 @@ void ingame::draw() {
 		}
 		case SLIDER: {
 			auto& s = sliders[ho.idx];
-			if (!mods[(int)MODS::HD])
+			if (!mods[(int)MODS::HD]) {
+				if(!s.head_hit_checked)
 				DrawTexturePro(atlas, tex[(int)SPRITE::ApproachCircle], { ho.pos.x - approach_scale, ho.pos.y - approach_scale, approach_scale * 2, approach_scale * 2 }, { 0,0 }, 0.0f, color);
+			}
 			else {
 				float slider_progress = 2.0f * float(ho.end_time - map_time) / (float)approach_rate_milliseconds - 0.5f;
 				slider_progress = std::clamp(slider_progress, 0.0f, 1.0f);
@@ -1459,94 +1533,25 @@ void ingame::draw() {
 				DrawTexturePro(atlas, tex[(int)SPRITE::SliderBowl], dest, origin, fix_mult * 180.0f + s.path.back().z, slider_body_color);
 			}
 
-
-
 			Color body_color = { 80, 80, 80, (unsigned char)(alpha * 0.5f) };
 			
-			Rectangle slider_body_src = tex[(int)SPRITE::SliderBody];
-			float u_left = slider_body_src.x / (float)atlas.width;
-			float u_right = (slider_body_src.x + slider_body_src.width) / (float)atlas.width;
-			float v_mid = (slider_body_src.y + slider_body_src.height / 2.0f) / (float)atlas.height;
-			float radius = circle_radius * 0.92f;
-
-			// fix for linear sliders
-			auto get_pt = [&](int idx) -> Vector2 {
-				if (s.path.size() == 1) {
-					return idx == 0 ? Vector2{ ho.pos.x, ho.pos.y } : Vector2{ s.path[0].x, s.path[0].y };
-				}
-				return { s.path[idx].x, s.path[idx].y };
-				};
-			int path_len = (s.path.size() == 1) ? 2 : s.path.size();
-
-			// 3. Draw Continuous Triangle Strip
 			rlSetTexture(atlas.id);
 			rlBegin(RL_TRIANGLES);
 			rlColor4ub(slider_body_color.r, slider_body_color.g, slider_body_color.b, slider_body_color.a);
 
-			Vector2 prev_left = { 0 }, prev_right = { 0 };
+			for (int i = 1; i < s.body_path_length; i++) {
+				Vector2 prev_left = s.body_left[i - 1];
+				Vector2 prev_right = s.body_right[i - 1];
+				Vector2 curr_left = s.body_left[i];
+				Vector2 curr_right = s.body_right[i];
 
-			for (int i = 0; i < path_len; i++) {
-				Vector2 current = get_pt(i);
-				Vector2 t; // Tangent vector
+				rlTexCoord2f(u_left, v_mid);  rlVertex2f(prev_left.x, prev_left.y);
+				rlTexCoord2f(u_left, v_mid);  rlVertex2f(curr_left.x, curr_left.y);
+				rlTexCoord2f(u_right, v_mid);  rlVertex2f(prev_right.x, prev_right.y);
 
-				// Calculate tangent based on neighbors
-				if (i == 0) {
-					Vector2 next = get_pt(1);
-					t = { next.x - current.x, next.y - current.y };
-				}
-				else if (i == path_len - 1) {
-					Vector2 prev = get_pt(i - 1);
-					t = { current.x - prev.x, current.y - prev.y };
-				}
-				else {
-					Vector2 prev = get_pt(i - 1);
-					Vector2 next = get_pt(i + 1);
-					Vector2 t1 = { current.x - prev.x, current.y - prev.y };
-					Vector2 t2 = { next.x - current.x, next.y - current.y };
-
-					float l1 = std::sqrt(t1.x * t1.x + t1.y * t1.y);
-					float l2 = std::sqrt(t2.x * t2.x + t2.y * t2.y);
-					if (l1 > 0) { t1.x /= l1; t1.y /= l1; }
-					if (l2 > 0) { t2.x /= l2; t2.y /= l2; }
-					t = { t1.x + t2.x, t1.y + t2.y };
-				}
-
-				float tLen = std::sqrt(t.x * t.x + t.y * t.y);
-				if (tLen > 0) { t.x /= tLen; t.y /= tLen; }
-
-				Vector2 n = { -t.y, t.x }; // Normal vector
-				float miter = 1.0f;
-
-				// Calculate Miter joint expansion for sharp corners
-				if (i > 0 && i < path_len - 1) {
-					Vector2 prev = get_pt(i - 1);
-					Vector2 t1 = { current.x - prev.x, current.y - prev.y };
-					float l1 = std::sqrt(t1.x * t1.x + t1.y * t1.y);
-					if (l1 > 0) {
-						Vector2 n1 = { -t1.y / l1, t1.x / l1 };
-						float dot = n.x * n1.x + n.y * n1.y;
-						if (dot > 0.1f) miter = 1.0f / dot;
-						if (miter > 1.5f) miter = 1.5f; // Clamp to prevent wild spikes on V-shapes
-					}
-				}
-
-				Vector2 curr_left = { current.x + n.x * radius * miter, current.y + n.y * radius * miter };
-				Vector2 curr_right = { current.x - n.x * radius * miter, current.y - n.y * radius * miter };
-
-				if (i > 0) {
-					// Triangle 1
-					rlTexCoord2f(u_left, v_mid);  rlVertex2f(prev_left.x, prev_left.y);
-					rlTexCoord2f(u_left, v_mid);  rlVertex2f(curr_left.x, curr_left.y);
-					rlTexCoord2f(u_right, v_mid); rlVertex2f(prev_right.x, prev_right.y);
-
-					// Triangle 2
-					rlTexCoord2f(u_left, v_mid);  rlVertex2f(curr_left.x, curr_left.y);
-					rlTexCoord2f(u_right, v_mid); rlVertex2f(curr_right.x, curr_right.y);
-					rlTexCoord2f(u_right, v_mid); rlVertex2f(prev_right.x, prev_right.y);
-				}
-
-				prev_left = curr_left;
-				prev_right = curr_right;
+				rlTexCoord2f(u_left, v_mid);  rlVertex2f(curr_left.x, curr_left.y);
+				rlTexCoord2f(u_right, v_mid);  rlVertex2f(curr_right.x, curr_right.y);
+				rlTexCoord2f(u_right, v_mid);  rlVertex2f(prev_right.x, prev_right.y);
 			}
 
 			rlEnd();
@@ -1572,6 +1577,10 @@ void ingame::draw() {
 			// draw reverse arrows
 			if (s.repeat_left > 1) {
 
+				if (IsKeyPressed(KEY_V)) {
+					std::cout << "break";
+				}
+
 				int added_angle = 90.0f;
 				if (s.slider_type == 'P') {
 					if (s.path[0].z > s.path[1].z)
@@ -1582,12 +1591,14 @@ void ingame::draw() {
 
 				if (s.repeat_left > 2) {
 					// draw both
-					Rectangle dest = { ho.pos.x, ho.pos.y, circle_radius * 2.0f, circle_radius * 2.0f };
+					Rectangle dest = { s.path.back().x, s.path.back().y, circle_radius * 2.0f, circle_radius * 2.0f };
 					Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-					if (s.head_hit_checked) DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, 270.0f + s.path.back().z, white_alpha_nonfade);
-					dest = { s.path.back().x, s.path.back().y, circle_radius * 2.0f, circle_radius * 2.0f };
-
-					DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path[0].z, white_alpha_nonfade);
+					DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path.back().z, white_alpha_nonfade);
+					if (s.head_hit_checked) {
+						dest = { ho.pos.x, ho.pos.y, circle_radius * 2.0f, circle_radius * 2.0f };
+						origin = { dest.width / 2.0f, dest.height / 2.0f };
+						DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, 180.0f + added_angle + s.path[0].z, white_alpha_nonfade);
+					}
 				}
 				else {
 					if (s.repeat_count % 2 - s.repeat_left % 2 == 0) {
@@ -1596,12 +1607,12 @@ void ingame::draw() {
 							Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
 							DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path.back().z, white_alpha_nonfade);
 					}
-					else {
+					if (s.repeat_count % 2 - s.repeat_left % 2 == 1) {
 						// draw at start
 						if (s.head_hit_checked) {
 							Rectangle dest = { ho.pos.x, ho.pos.y, circle_radius * 2.0f, circle_radius * 2.0f };
 							Vector2 origin = { dest.width / 2.0f, dest.height / 2.0f };
-							DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, added_angle + s.path[0].z, white_alpha_nonfade);
+							DrawTexturePro(atlas, tex[(int)SPRITE::ReverseArrow], dest, origin, 180.0f + added_angle + s.path[0].z, white_alpha_nonfade);
 						}
 					}
 				}
@@ -1636,7 +1647,7 @@ void ingame::draw() {
 	}
 
 	// --- Draw hits ---
-	float frame_time = GetFrameTime();
+	
 	for (auto it = hits.begin(); it != hits.end(); ) {
 		auto& h = *it;
 		if (!settings_render_300s && (h.result == HIT_300 || h.result == HIT_300G || h.result == HIT_300K)) {
@@ -1685,6 +1696,38 @@ void ingame::draw() {
 		}
 	}
 	
+	// apply flashlight effects
+	if (mods[(int)MODS::FL]) {
+		flashlight_pos_target = cursor;
+
+		if (map_time + 10.0f > map_first_object_time) {
+			if (combo < 100) flashlight_dim_target = 1.0f;
+			else if (combo < 200) flashlight_dim_target = 0.8125f;
+			else flashlight_dim_target = 0.625f;
+		}
+		float spr_begin_x = flashlight_pos.x - 1.32f * flashlight_dim * playfield_scale * tex[(int)SPRITE::FLDim].width / 2.f;
+		float spr_end_x = flashlight_pos.x + 1.32f * flashlight_dim * playfield_scale * tex[(int)SPRITE::FLDim].width / 2.f;
+		float spr_begin_y = flashlight_pos.y - 1.32f * flashlight_dim * playfield_scale * tex[(int)SPRITE::FLDim].height / 2.f;
+		float spr_end_y = flashlight_pos.y + 1.32f * flashlight_dim * playfield_scale * tex[(int)SPRITE::FLDim].height / 2.f;
+
+		float fix = playfield_scale * 2;
+
+		DrawRectangleRec({ 0.f, 0.f, screen_width, spr_begin_y + fix}, BLACK);
+		DrawRectangleRec({ 0.f, spr_begin_y - fix, spr_begin_x + fix, screen_height - spr_begin_y + fix }, BLACK);
+		DrawRectangleRec({ spr_end_x - fix, spr_begin_y - fix, screen_width - spr_end_x + fix, screen_height - spr_begin_y + fix }, BLACK);
+		DrawRectangleRec({ spr_begin_x - fix, spr_end_y - fix, spr_end_x - spr_begin_x + fix, screen_height - spr_end_y + fix }, BLACK);
+		DrawTexturePro(atlas, tex[(int)SPRITE::FLDim], { spr_begin_x, spr_begin_y, (spr_end_x - spr_begin_x), (spr_end_y - spr_begin_y) }, { 0.f, 0.f }, 0.f, WHITE);
+
+		if (flashlight_dim > flashlight_dim_target)
+			flashlight_dim = std::max(flashlight_dim - 1.6f * frame_time, flashlight_dim_target);
+		else
+			flashlight_dim = std::min(flashlight_dim + 1.6f * frame_time, flashlight_dim_target);
+		float frame_ms = frame_time * 1000.0f;
+
+		flashlight_pos.x = -(flashlight_pos_target.x - flashlight_pos.x) * (frame_ms / 120.0f) * (frame_ms - 2) + flashlight_pos.x;
+		flashlight_pos.y = -(flashlight_pos_target.y - flashlight_pos.y) * (frame_ms / 120.0f) * (frame_ms - 2) + flashlight_pos.y;
+	}
+
 	// --- Draw UI ---
 
 	if (settings_render_ingame_ui) {

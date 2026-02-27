@@ -551,8 +551,6 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\json.hpp" />
-    <ClInclude Include="..\..\include\json_fwd.hpp" />
     <ClInclude Include="..\..\include\miniz.h" />
     <ClInclude Include="..\..\include\tinyfiledialogs.h" />
     <ClInclude Include="..\..\src\db.hpp" />

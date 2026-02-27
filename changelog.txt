@@ -2,12 +2,10 @@
 Known  Bugs
 -----------
 
-(!!) Slider overdraw on red ticks
 (!!) Offset problem
-(!) Slider bodies are not transparent
 (!) Stack leniency is somewhat broken
 When importing maps in fullscreen the window doesnt show up
-
+Cant hit objects before map starts
 
 After deleting a mapset, it tries to load the deleted mp3
 
@@ -144,21 +142,35 @@ a2026.0220
 
 a2026.0222
 
-(~) Re-did slider rendering; now much faster and more accurate.
+(~) Re-did slider rendering; now much faster and more accurate. 
 (+) Added pausing in game
 (+) Added submenus on song select screen
-(+) Added sensitivity slider
+(+) Added sensitivity setting
 (+) Added mod select screen
-(+) Made mods EZ, HT, HR, DT, NC, HD functional
+(+) Made mods Easy, HalfTime, HardRock, DoubleTime(partial), NightCore (partial), Hidden functional
 (*) Fixed offset issue when skipping
 (*) Fixed spinner's middle circle not scaling with resolution
 (*) Fixed some sliders not rendering
 (*) Fixed slidertick appearance
 (*) Fixed sliderticks after a reverse arrow not showing up
 (*) Fixed sliders playing wrong sounds
+(*) Fixed slider transparency (thanks to the slider render rewrite)
 
+a2026.0227
 
-ADD 2 MODS RATECHANGE AND DIFFICULTYADJUST
+(+) Made mod Flashlight functional
+(*) Fixed sprites bleeding through each other
+(*) Fixed slider approach circles still rendering after being hit early
+(Code) New sprite atlas format & loader (switched to gdx texture packer)
+
+add toggleable key overlay
+add remaining mods functionalities
+fix slider red ticks going too crazy on sharp corners
+ADD Offset controls
+add toggles for permanent fl 100/200 combo
+add toggleable followpoints 
+add score saving
+for modifying map lists: always load maps in same order, use another file to keep track of grades/unplayed status, load by index? probably a terrible idea
 
 fix:
 map speed fucking up spinners
@@ -173,26 +185,32 @@ add:
 (DONE) Toggleable UR bar
 (DONE) keep UR data to show at end of play
 (DONE) toggle rectangle that shows play area
+(DONE) sound control
+(DONE) fix number transparencies on notes
 
-mods (with rate change)
+(wip) mods (with rate change)
 custom sounds
-sound control
 offline profile
 osu api support
 
 change key settings (grid/list)
 A good main menu
 menu transitions so it doesnt look shit.
-fix number transparencies on notes
 
 record replay (toggleable for performance)
 a benchmark button (auto mod prerequisite) would be cool
 
 
-toggleable key overlay
 some sliders end a bit too early (i think they might be missing the last point in the path), their sliderend hitsound volume is wrong, and some reverse arrows still change directions rarely. fix it (oyasumi hard has a bunch of wrong reverse arrows - maybe fix i used for perfect circle sliders is applicable here(beziers) as well - can i do this at map creation instead of ::draw though) 
 also bbydoll has some sliders that dont show up at all wtf
 weird slider head on die young NYAN diff middle part
 
 hp (toggleable) (ON HOLD)
+
+
+things to aim for in beta milestone:
+change key settings, replay record, all mods working, no major bugs, better song select, better main menu & menu transitions.
+
+for release:
+offline profile, osu api support, custom map sfx support, (partial) custom skin support (most ambitious), benchmark button
 
