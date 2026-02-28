@@ -96,12 +96,14 @@ public:
 	void update();
 	void draw();
 
-	
 private:
 	inline void object_hit(const HitObjectEntry& pos, const HitResult res);
 	inline void recalculate_score_acc(const HitResult res);
 	inline void combo_break();
 	inline void add_unstable_rate_data(float ur);
+	inline void update_keys(int i);
+	inline void play_hitsound(uint8_t snd, uint8_t volume);
+
 	void check_hit(bool notelock_check);
 
 	bool paused = false;
@@ -137,6 +139,11 @@ private:
 
 	float scaled_playfield_size_w = 512.0f * playfield_scale;
 	float scaled_playfield_size_h = 384.0f * playfield_scale;
+
+	std::array<int, 4> taps = { 0, 0, 0, 0 };
+	std::array<float, 4> taps_str_x = { 0.f, 0.f, 0.f, 0.f };
+	std::array<std::string, 4> taps_str = { std::string("K1"), std::string("K2"), std::string("M1"), std::string("M2") };
+	std::array<bool*, 4> tap_variables = { &key1_down, &key2_down, &m1_down, &m2_down };
 
 	uint32_t score = 0;
 	uint32_t combo = 0;

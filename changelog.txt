@@ -158,10 +158,13 @@ a2026.0222
 
 a2026.0227
 
+(+) Added in-game key overlay (toggleable)
 (+) Made mod Flashlight functional
 (*) Fixed sprites bleeding through each other
 (*) Fixed slider approach circles still rendering after being hit early
 (Code) New sprite atlas format & loader (switched to gdx texture packer)
+
+a2026.0228
 
 add toggleable key overlay
 add remaining mods functionalities
@@ -173,6 +176,7 @@ add score saving
 for modifying map lists: always load maps in same order, use another file to keep track of grades/unplayed status, load by index? probably a terrible idea
 
 fix:
+Keys dont block mouse clicks as they should
 map speed fucking up spinners
 slider hit sounds can fuck up at soft/drum/normal transitions
 

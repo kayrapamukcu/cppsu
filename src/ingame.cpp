@@ -734,11 +734,12 @@ ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
 	float drain_time = float(hit_objects.back().time - hit_objects[0].time) / 1000.0f;
 
 	difficulty_multiplier = (int)std::round((map_info.hp + map_info.cs + map_info.od + std::clamp((float)total_hit_objects / drain_time * 8.0f, 0.0f, 16.0f)) / 38.0f * 5.0f);
-
+	for(int i = 0; i < 4; i++)
+		taps_str_x[i] = screen_width - 26.f * screen_height_ratio - (MeasureTextEx(aller_r, taps_str[i].c_str(), 18.f * screen_height_ratio, 0).x) / 2;
     std::cout << "Map loaded: " << circle_cnt << " circles, " << slider_cnt << " sliders, " << spinner_cnt << " spinners.\n" << "Max combo: " << total_max_combo << "\n";
 }
 
-static void play_hitsound(uint8_t snd, uint8_t volume) {
+void ingame::play_hitsound(uint8_t snd, uint8_t volume) {
 
 	std::string type;
 	switch ((snd >> 4)) {
@@ -953,6 +954,11 @@ void ingame::check_hit(bool notelock_check) {
 	}
 }
 
+void ingame::update_keys(int i) {
+	taps[i]++;
+	taps_str[i] = std::to_string(taps[i]);
+	taps_str_x[i] = screen_width - 26.f * screen_height_ratio - (MeasureTextEx(aller_r, taps_str[i].c_str(), 18.f * screen_height_ratio, 0).x) / 2;
+}
 
 void ingame::update() {
 
@@ -1122,12 +1128,14 @@ void ingame::update() {
 		update_object_jmp: // do all this for the 2 objects to prevent notelock
 
 			if (IsKeyPressed(key_1)) {
+				if(check_cnt < 1) update_keys(0);
 				if (!key1_down) {
 					check_hit(bool(check_cnt));
 					key1_down = true;
 				}
 			}
 			if (IsKeyPressed(key_2)) {
+				if (check_cnt < 1) update_keys(1);
 				if (!key2_down) {
 					key2_down = true;
 					check_hit(bool(check_cnt));
@@ -1135,11 +1143,15 @@ void ingame::update() {
 			}
 			if (settings_ingame_mouse_buttons) {
 				if (m1_pressed && !key1_down) {
+					update_keys(2);
 					key1_down = true;
+					m1_down = true;
 					check_hit(bool(check_cnt));
 				}
 				if (m2_pressed && !key2_down) {
+					update_keys(3);
 					key2_down = true;
+					m2_down = true;
 					check_hit(bool(check_cnt));
 				}
 			}
@@ -1152,9 +1164,11 @@ void ingame::update() {
 			if (settings_ingame_mouse_buttons) {
 				if (m1_released) {
 					key1_down = false;
+					m1_down = true;
 				}
 				if (m2_released) {
 					key2_down = false;
+					m2_down = false;
 				}
 			}
 			HitObjectEntry ho;
@@ -1696,7 +1710,8 @@ void ingame::draw() {
 		}
 	}
 	
-	// apply flashlight effects
+	// Apply flashlight effects
+
 	if (mods[(int)MODS::FL]) {
 		flashlight_pos_target = cursor;
 
@@ -1731,6 +1746,23 @@ void ingame::draw() {
 	// --- Draw UI ---
 
 	if (settings_render_ingame_ui) {
+		// Draw key overlay
+		if (settings_render_key_overlay) {
+
+			DrawTexturePro(atlas, tex[(int)SPRITE::InputBackground], { screen_width - 50.f * screen_height_ratio, 330.f * screen_height_ratio, 50.f * screen_height_ratio, 190.f * screen_height_ratio }, { 0.f, 0.f }, 0.f, WHITE);
+			Color c = WHITE;
+			Rectangle rect = { screen_width - 50.f * screen_height_ratio, 282.f * screen_height_ratio, 44.f * screen_height_ratio, 44.f * screen_height_ratio };
+			for (int i = 0; i < 4; i++) {
+				if (*tap_variables[i]) c = { 253, 223, 0, 255 };
+				else c = WHITE;
+				rect.y += 48.f * screen_height_ratio;
+				DrawTexturePro(atlas, tex[(int)SPRITE::InputKey], { rect }, { 0.f, 0.f }, 0.0f, c);
+				DrawTextPro(aller_r, taps_str[i].c_str(), {taps_str_x[i], rect.y + rect.height * 0.25f}, {0.f, 0.f}, 0.0f, 18.f * screen_height_ratio, 0, BLACK);
+			}
+		}
+
+
+		// Draw combo, score, acc
 		DrawTextEx(aller_r, (std::to_string(combo) + "x").c_str(), { 0, (screen_height - screen_height / 16.0f) }, 48 * screen_height_ratio, 0, WHITE);
 
 		std::string score_str = get_score_string(score);
@@ -1742,7 +1774,6 @@ void ingame::draw() {
 		DrawTextEx(aller_r, acc_str.c_str(), { (screen_width - acc_text_length), 48 * screen_height_ratio }, 48.0f * screen_height_ratio, 0, WHITE);
 
 		// Draw UR bar
-
 		if (settings_display_ur_bar) {
 			float scw_h = screen_width / 2;
 			float mult_w = ur_bar_size * screen_width_ratio;
