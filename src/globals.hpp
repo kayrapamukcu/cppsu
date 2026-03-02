@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <array>
 #include <iostream>
+#include <tuple>
 
 // Texture atlas stuff
 
@@ -206,6 +207,26 @@ enum class MODS {
 	COUNT
 };
 
+static inline constexpr std::array<std::tuple<MODS, std::string_view, float, std::string_view>, (int)MODS::COUNT> mod_info{
+	// mod, abbr., mult., name
+	std::tuple{ MODS::AT, "AT", 1.0f, "Auto"},
+	std::tuple{ MODS::SO, "SO", 0.9f, "SpunOut"},
+	std::tuple{ MODS::EZ, "EZ", 0.5f, "Easy"},
+	std::tuple{ MODS::NF, "NF", 0.5f, "NoFail"},
+	std::tuple{ MODS::HD, "HD", 1.06f, "Hidden"},
+	std::tuple{ MODS::HT, "HT", 0.30f, "HalfTime"},
+	std::tuple{ MODS::DT, "DT", 1.12f, "DoubleTime"},
+	std::tuple{ MODS::NC, "NC", 1.12f, "Nightcore"},
+	std::tuple{ MODS::HR, "HR", 1.06f, "HardRock"},
+	std::tuple{ MODS::SD, "SD", 1.0f, "SuddenDeath"},
+	std::tuple{ MODS::PF, "PF", 1.0f, "Perfect"},
+	std::tuple{ MODS::AP, "AP", 0.0f, "AutoPilot"},
+	std::tuple{ MODS::RX, "RX", 0.0f, "Relax"},
+	std::tuple{ MODS::FL, "FL", 1.12f, "Flashlight"},
+	std::tuple{ MODS::RC, "RC", 1.0f, "RateChange"},
+	std::tuple{ MODS::DA, "DA", 1.0f, "DifficultyAdjust"}
+};
+
 struct file_struct {
 	std::string audio_filename;
 	std::string title;
@@ -245,10 +266,13 @@ struct file_struct {
 };
 
 struct results_struct {
+	uint32_t results_version;
 	std::chrono::time_point<std::chrono::system_clock, std::chrono::seconds> time;
-	std::string player_name;
-	std::string beatmap_header;
-	std::string beatmap_header_2;
+	std::array<char, 16> player_name;
+	std::array<char, 16> creator;
+	std::array<char, 64> artist;
+	std::array<char, 96> title;
+	std::array<char, 96> difficulty;
 	uint32_t score = 0;
 	uint32_t max_combo = 0;
 	uint32_t hit300s = 0;
@@ -264,6 +288,11 @@ struct results_struct {
 	float map_speed = 1.0f;
 	RANKS rank = RANK_F;
 	bool perfect_combo;
+
+	uint32_t set_id;
+	uint32_t map_id;
+	
+	std::array<bool, (int)MODS::COUNT> mod_array;
 };
 
 struct TexWithSrc {
@@ -336,7 +365,8 @@ static inline int play_sound_effect(const std::string& name, float volume = 1.0f
 inline float frame_time = 0.0f;
 
 inline constexpr int DB_VERSION = 8;
-inline constexpr std::string_view CLIENT_VERSION = "a2026.0227";
+inline constexpr int RESULTS_VERSION = 1;
+inline constexpr std::string_view CLIENT_VERSION = "a2026.0302";
 
 inline float screen_width_ratio = (float)screen_width / 1024.0f;
 inline float screen_height_ratio = (float)screen_height / 768.0f;
@@ -486,6 +516,10 @@ static inline std::string format_length(uint16_t length) {
 	int minutes = length / 60;
 	int seconds = length % 60;
 	return std::string(minutes < 10 ? "0" : "") + std::to_string(minutes) + ":" + (seconds < 10 ? "0" : "") + std::to_string(seconds);
+}
+
+static inline std::string format_int(int i) {
+	return std::format(std::locale(""), "{:L}", i);
 }
 
 static inline bool IsPOT(int v) { return v > 0 && (v & (v - 1)) == 0; }

@@ -704,7 +704,7 @@ ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
 		hit_objects.back().last_in_combo = true;
 	}
 
-	map_begin_time = -(1000.0f * map_speed); //-(float)GetTime() * 1000.0f * map_speed - (1000.0f * map_speed);
+	map_begin_time = -(1000.0f * map_speed) - 20.0f; //-(float)GetTime() * 1000.0f * map_speed - (1000.0f * map_speed);
 
 	hit_objects.shrink_to_fit();
 	sliders.shrink_to_fit();
@@ -986,12 +986,12 @@ void ingame::update() {
 		map_time = map_begin_time + map_time_accumulator;
 
 		if (song_init == 2) {
-			if (abs(GetMusicTimePlayed(music) * 1000.0f - map_time) > 10.0f) {
+			if (abs(GetMusicTimePlayed(music) * 1000.0f - 20.0f - map_time) > 10.0f) {
 				// try to resync
 				std::cout << "Music desynced - trying to resync; difference of " << abs(GetMusicTimePlayed(music) * 1000.0f - map_time) << "\n";
 
 				map_time_accumulator = 0;
-				map_begin_time = GetMusicTimePlayed(music) * 1000.0f;
+				map_begin_time = GetMusicTimePlayed(music) * 1000.0f - 20.0f;
 			}
 		}
 
@@ -1004,10 +1004,29 @@ void ingame::update() {
 
 			if (accumulated_end_time > 2.0f || IsKeyPressed(KEY_ESCAPE)) {
 				results_struct res;
+				res.results_version = RESULTS_VERSION;
 				res.time = std::chrono::time_point_cast<std::chrono::seconds>(std::chrono::system_clock::now());
-				res.beatmap_header = map_info.artist + " - " + map_info.title + " [" + map_info.difficulty + "]";
-				res.beatmap_header_2 = "Beatmap by " + map_info.creator;
-				res.player_name = player_name;
+
+				res.artist.fill('\0');
+				std::size_t count = std::min(map_info.artist.size(), res.artist.size() - 1);
+				std::memcpy(res.artist.data(), map_info.artist.data(), count);
+
+				res.title.fill('\0');
+				count = std::min(map_info.title.size(), res.title.size() - 1);
+				std::memcpy(res.title.data(), map_info.title.data(), count);
+
+				res.difficulty.fill('\0');
+				count = std::min(map_info.difficulty.size(), res.difficulty.size() - 1);
+				std::memcpy(res.difficulty.data(), map_info.difficulty.data(), count);
+
+				res.creator.fill('\0');
+				count = std::min(map_info.creator.size(), res.creator.size() - 1);
+				std::memcpy(res.creator.data(), map_info.creator.data(), count);
+				
+				res.player_name.fill('\0');
+				count = std::min(player_name.size(), res.player_name.size() - 1);
+				std::memcpy(res.player_name.data(), player_name.data(), count);
+
 				res.accuracy = accuracy;
 				res.score = score;
 				res.max_combo = max_combo;
@@ -1018,6 +1037,11 @@ void ingame::update() {
 				res.geki = hitgekis;
 				res.katu = hitkatus;
 				res.map_speed = map_speed;
+				res.set_id = map_info.beatmap_set_id;
+				res.map_id = map_info.beatmap_id;
+				res.mod_array = mods;
+				
+
 
 				std::array<float, 3> ur_values = { 0.0f, 0.0f, 0.0f };
 				sort(ur_per_note.begin(), ur_per_note.end());

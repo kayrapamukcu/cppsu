@@ -10,7 +10,6 @@ float song_select::entry_row_height = 86.0f;
 double song_select::current_position = 0.5;
 float song_select::scroll_speed = 0.0f;
 int song_select::visible_entries = 11;
-std::vector<file_struct> song_select::map_list;
 int song_select::map_list_size = 0;
 int song_select::selected_mapset = -999;
 int song_select::selected_map_list_index = 0;
@@ -71,6 +70,16 @@ void song_select::choose_beatmap(int idx) {
 	}
 
 	loaded_bg_path = bg_path;
+
+	// load all scores
+	score_list.clear();
+
+	auto path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / std::to_string(selected_map.beatmap_id);
+	if (std::filesystem::is_directory(path)) {
+		auto filenames = db::get_files(path, ".score");
+		if(filenames.size() > 0)
+			load_score_list(path, filenames);
+	}
 }
 
 void song_select::enter_game(file_struct map) {
@@ -363,6 +372,66 @@ void song_select::callback_draw_mods(button_callback& b)
 		DrawTexturePro(atlas, tex[(int)b.sprite], { b.pos.x, b.pos.y, tex[(int)b.sprite].width * b.scale.x, tex[(int)b.sprite].height * b.scale.y }, { 0.0f, 0.0f }, 0.0f, b.color);
 }
 
+void song_select::load_score_list(const std::filesystem::path path, const std::vector<std::string> scores)
+{
+	for (auto& s : scores) {
+		results_struct data;
+		std::ifstream fin(path / s, std::ios::binary);
+		fin.read(reinterpret_cast<char*>(&data), sizeof(results_struct));
+
+		score_entry score;
+		std::string mod_text_full;
+		score.score = data.score;
+		score.acc_text = format_floats(data.accuracy) + "%";
+		score.mod_array = data.mod_array;
+		for (int i = 0; i < score.mod_array.size(); i++) {
+			if(score.mod_array[i])
+				if (score.mod_text.empty()) {
+					score.mod_text += std::get<1>(mod_info[i]);
+					mod_text_full = std::get<3>(mod_info[i]);
+				}
+				else {
+					score.mod_text += "," + std::string(std::get<1>(mod_info[i]));
+					mod_text_full += "," + std::string(std::get<3>(mod_info[i]));
+				}	
+		}
+		score.score_text = "Score: " + format_int(data.score) + " (" + std::to_string(data.max_combo) + "x)";
+
+		score.text_widths[0] = MeasureTextEx(aller_r, score.acc_text.c_str(), 16.f * screen_height_ratio, 0).x;
+		score.text_widths[1] = MeasureTextEx(aller_r, score.mod_text.c_str(), 16.f * screen_height_ratio, 0).x;
+		
+
+		std::time_t t = std::chrono::system_clock::to_time_t(data.time);
+		std::tm local_tm{};
+
+		#if defined(_WIN32)
+				localtime_s(&local_tm, &t); // Windows
+		#else
+				localtime_r(&t, &local_tm); // MacOS / Linux
+		#endif
+
+		std::strftime(score.time_buf.data(), sizeof(score.time_buf), "%d.%m.%Y %H:%M:%S", &local_tm);
+
+		score.hover_text = "Achieved on " + std::string(score.time_buf.data()) + "\n300: " + std::to_string(data.hit300s) + " 100: " + std::to_string(data.hit100s) + " 50: " + std::to_string(data.hit50s) + " Miss: " + std::to_string(data.misses) + "\nAccuracy:" + format_floats(data.accuracy) + "%\nMods: " + (mod_text_full.empty() ? "None" : mod_text_full);
+
+		score.hover_text_size = MeasureTextEx(aller_r, score.hover_text.c_str(), 18.f * screen_height_ratio, 0);
+
+		
+		score.name = data.player_name;
+		score.rank = data.rank;
+
+		
+
+		score_list.push_back(score);
+
+		fin.close();
+	}
+
+	std::sort(score_list.begin(), score_list.end(), [](const score_entry& a, const score_entry& b) {
+		return a.score > b.score;
+	});
+}
+
 
 void song_select::update() {
 	
@@ -547,6 +616,59 @@ void song_select::draw() {
 		format_floats(selected_map.star_rating)
 	);
 	DrawTextExScaled(aller_r, stats_3.c_str(), { 4,112 }, 18, 0, map_stats_c);
+
+	// draw loaded scores
+
+	Rectangle draw_on_top;
+	std::string hover_text;
+
+	for (int i = 0; i < score_list.size(); i++) {
+		DrawRectangleRec({ 5.f * screen_height_ratio, (153.f + 53.f * i) * screen_height_ratio, 384.f * screen_height_ratio, 48.f * screen_height_ratio }, { 0, 0, 0, 80 });
+		score_entry& s = score_list[i];
+		Rectangle rank_to_draw;
+		switch (s.rank) {
+		case RANK_XH:
+			rank_to_draw = tex[(int)SPRITE::RankXHSmall];
+			break;
+		case RANK_X:
+			rank_to_draw = tex[(int)SPRITE::RankXSmall];
+			break;
+		case RANK_SH:
+			rank_to_draw = tex[(int)SPRITE::RankSHSmall];
+			break;
+		case RANK_S:
+			rank_to_draw = tex[(int)SPRITE::RankSSmall];
+			break;
+		case RANK_A:
+			rank_to_draw = tex[(int)SPRITE::RankASmall];
+			break;
+		case RANK_B:
+			rank_to_draw = tex[(int)SPRITE::RankBSmall];
+			break;
+		case RANK_C:
+			rank_to_draw = tex[(int)SPRITE::RankCSmall];
+			break;
+		case RANK_D:
+			rank_to_draw = tex[(int)SPRITE::RankDSmall];
+			break;
+		}
+
+		DrawTexturePro(atlas, rank_to_draw, { 60.f * screen_height_ratio, (157.f + 53.f * i) * screen_height_ratio , rank_to_draw.width * screen_height_ratio, rank_to_draw.height * screen_height_ratio }, { 0.0f, 0.0f }, 0.0f, WHITE);
+		DrawTextEx(aller_b, s.name.data(), { 100.f * screen_height_ratio, (157.f + 53.f * i) * screen_height_ratio }, 24.f * screen_height_ratio, 0.0f, WHITE);
+		DrawTextEx(aller_r, s.score_text.data(), { 100.f * screen_height_ratio, (180.f + 53.f * i) * screen_height_ratio }, 18.f * screen_height_ratio, 0.0f, WHITE);
+
+		DrawTextEx(aller_r, s.acc_text.data(), { 378.f * screen_height_ratio - s.text_widths[0], (171.f + 53.f * i) * screen_height_ratio}, 16.f * screen_height_ratio, 0.0f, WHITE);
+		DrawTextEx(aller_r, s.mod_text.data(), { 378.f * screen_height_ratio - s.text_widths[1], (157.f + 53.f * i) * screen_height_ratio}, 16.f * screen_height_ratio, 0.0f, WHITE);
+
+		if (CheckCollisionPointRec(cursor, { 5.f * screen_height_ratio, (153.f + 53.f * i) * screen_height_ratio, 384.f * screen_height_ratio, 48.f * screen_height_ratio })) {
+			draw_on_top = { cursor.x, cursor.y, s.hover_text_size.x, s.hover_text_size.y };
+			hover_text = s.hover_text;
+		}
+	}
+	if (!hover_text.empty()) {
+		DrawRectangleRec(draw_on_top, { 0, 0, 0, 220 });
+		DrawTextEx(aller_r, hover_text.c_str(), { cursor.x, cursor.y }, 18.f * screen_height_ratio, 0.0f, WHITE);
+	}
 
 	DrawRectangleRec({ 0, 684 * screen_height_ratio, screen_width, screen_height * 0.14f }, BLACK);
 

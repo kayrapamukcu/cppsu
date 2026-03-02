@@ -164,9 +164,16 @@ a2026.0227
 (*) Fixed slider approach circles still rendering after being hit early
 (Code) New sprite atlas format & loader (switched to gdx texture packer)
 
-a2026.0228
+a2026.0302
 
-add toggleable key overlay
+(+) Scores are now saved
+(+) Scores show up as a list on every map
+
+
+
+
+
+add cursor scale with circle size 
 add remaining mods functionalities
 fix slider red ticks going too crazy on sharp corners
 ADD Offset controls
@@ -176,6 +183,7 @@ add score saving
 for modifying map lists: always load maps in same order, use another file to keep track of grades/unplayed status, load by index? probably a terrible idea
 
 fix:
+reset all mods doesnt update the string
 Keys dont block mouse clicks as they should
 map speed fucking up spinners
 slider hit sounds can fuck up at soft/drum/normal transitions
@@ -191,6 +199,7 @@ add:
 (DONE) toggle rectangle that shows play area
 (DONE) sound control
 (DONE) fix number transparencies on notes
+(DONE) add toggleable key overlay
 
 (wip) mods (with rate change)
 custom sounds
@@ -218,3 +227,4 @@ change key settings, replay record, all mods working, no major bugs, better song
 for release:
 offline profile, osu api support, custom map sfx support, (partial) custom skin support (most ambitious), benchmark button
 
+resolution tuşlkarına en aşağıdakine basılmıyo bazen idk

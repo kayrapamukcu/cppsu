@@ -1,9 +1,25 @@
 #pragma once
 #include <vector>
 #include <tuple>
+#include <array>
 #include "db.hpp"
 #include "raylib.h"
 
+struct score_entry {
+	uint32_t score;
+	std::array<char, 16> name;
+	std::array<char, 32> time_buf;
+	std::array<bool, (int)MODS::COUNT> mod_array;
+	std::string score_text;
+	std::string acc_text;
+	std::string mod_text;
+	std::array<float, 3> text_widths;
+	Vector2 hover_text_size;
+
+	std::string hover_text;
+
+	RANKS rank;
+};
 
 class song_select {
 	public:
@@ -22,27 +38,12 @@ class song_select {
 		static int selected_map_list_index;
 		
 	private:
-		static inline constexpr std::array<std::tuple<MODS, std::string_view, float, std::string_view>, (int)MODS::COUNT> mod_info {
-			// mod, abbr., mult., name
-			std::tuple{ MODS::AT, "AT", 1.0f, "Auto"},
-			std::tuple{ MODS::SO, "SO", 0.9f, "SpunOut"},
-			std::tuple{ MODS::EZ, "EZ", 0.5f, "Easy"},
-			std::tuple{ MODS::NF, "NF", 0.5f, "NoFail"},
-			std::tuple{ MODS::HD, "HD", 1.06f, "Hidden"},
-			std::tuple{ MODS::HT, "HT", 0.30f, "HalfTime"},
-			std::tuple{ MODS::DT, "DT", 1.12f, "DoubleTime"},
-			std::tuple{ MODS::NC, "NC", 1.12f, "Nightcore"},
-			std::tuple{ MODS::HR, "HR", 1.06f, "HardRock"},
-			std::tuple{ MODS::SD, "SD", 1.0f, "SuddenDeath"},
-			std::tuple{ MODS::PF, "PF", 1.0f, "Perfect"},
-			std::tuple{ MODS::AP, "AP", 0.0f, "AutoPilot"},
-			std::tuple{ MODS::RX, "RX", 0.0f, "Relax"},
-			std::tuple{ MODS::FL, "FL", 1.12f, "Flashlight"},
-			std::tuple{ MODS::RC, "RC", 1.0f, "RateChange"},
-			std::tuple{ MODS::DA, "DA", 1.0f, "DifficultyAdjust"}
-		};
+		
+		static void load_score(const std::string &filename);
+		static void load_score_list(const std::filesystem::path path, const std::vector<std::string> scores);
 
-		static std::vector<file_struct> map_list;
+		static inline std::vector<score_entry> score_list;
+		static inline std::vector<file_struct> map_list;
 
 		static int visible_entries;
 		static float entry_row_height;

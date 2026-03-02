@@ -5,6 +5,9 @@
 result_screen::result_screen(results_struct results)
 {
 	this->results = results;
+	beatmap_header = std::string(results.artist.data()) + " - " + std::string(results.title.data()) + " [" + std::string(results.difficulty.data()) + "]";
+	beatmap_header_2 = "Beatmap by " + std::string(results.creator.data());
+	save_score();
 	StopMusicStream(music);
 	score_str = get_score_string(results.score);
 
@@ -22,7 +25,7 @@ result_screen::result_screen(results_struct results)
 	char time_buf[32];
 	std::strftime(time_buf, sizeof(time_buf), "%d.%m.%Y %H:%M:%S", &local_tm);
 
-	played_text = "Played by " + results.player_name + " on " + std::string(time_buf) + ".";
+	played_text = "Played by " + std::string(results.player_name.data()) + " on " + std::string(time_buf) + ".";
 
 	channel_music = play_sound_effect("applause.mp3");
 	switch (results.rank) {
@@ -102,8 +105,8 @@ void result_screen::draw() {
 	// Draw header
 	DrawRectangleV({ 0, 0 }, { screen_width, screen_height / 8 }, Color{ 0, 0, 0, 200 });
 	DrawTextEx(aller_l, played_text.c_str(), { 4 * sh, 64 * sh}, 24 * sh, 0, WHITE);
-	DrawTextEx(aller_l, results.beatmap_header.c_str(), { 4 * sh, 4 * sh}, 36 * sh, 0, WHITE);
-	DrawTextEx(aller_l, results.beatmap_header_2.c_str(), { 4 * sh, 40 * sh }, 24 * sh, 0, WHITE);
+	DrawTextEx(aller_l, beatmap_header.c_str(), { 4 * sh, 4 * sh}, 36 * sh, 0, WHITE);
+	DrawTextEx(aller_l, beatmap_header_2.c_str(), { 4 * sh, 40 * sh }, 24 * sh, 0, WHITE);
 	DrawTextEx(aller_r, "Ranking", { screen_width - 356.0f * sh, 4 * sh}, 108 * sh, 0, WHITE);
 }
 
@@ -114,4 +117,27 @@ void result_screen::update() {
 		g_result_screen = nullptr;
 		song_select::init(true);
 	}
+}
+
+void result_screen::save_score() const
+{
+	auto path = db::fs_path / "maps" / std::to_string(results.set_id) / std::to_string(results.map_id);
+	if (!std::filesystem::is_directory(path)) {
+		std::filesystem::create_directory(path);
+	}
+
+	std::ofstream file(path / (std::to_string(results.time.time_since_epoch().count()) + ".score"), std::ios::binary);
+	if (!file) {
+		std::cout << "Failed to create score file!";
+		return;
+	}
+
+	// allocate 512 bytes per score just in case we need to add something later on
+	const auto n = 512 - sizeof(results);
+	char buffer[n] = { 0 };
+
+	file.write((char*)(&results), sizeof(results));
+	file.write(buffer, n);
+
+	file.close();
 }

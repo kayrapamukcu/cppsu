@@ -7,8 +7,11 @@ public:
 	result_screen(results_struct results);
 	void draw();
 	void update();
+	void save_score() const;
 private:
 	results_struct results;
+	std::string beatmap_header;
+	std::string beatmap_header_2;
 	std::string score_str;
 	std::string played_text;
 	int channel_music;
