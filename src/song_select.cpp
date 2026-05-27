@@ -5,6 +5,7 @@
 #include <format>
 #include <rlgl.h>
 #include "ingame.hpp"
+#include "result_screen.hpp"
 
 float song_select::entry_row_height = 86.0f;
 double song_select::current_position = 0.5;
@@ -86,7 +87,7 @@ void song_select::enter_game(file_struct map) {
 	scroll_speed = 0.0f;
 	StopMusicStream(music);
 	game_state = INGAME;
-	g_ingame = new ingame(map, selected_mods);
+	g_ingame = new ingame(map, selected_mods, score_multiplier, false, "");
 }
 
 void song_select::init(bool alreadyInitialized) {
@@ -247,7 +248,6 @@ void song_select::callback_choose_random_map(int) {
 	choose_beatmap(GetRandomValue(0, map_list_size));
 	current_position = selected_map_list_index - 4;
 }
-
 void song_select::callback_change_menu(int menu)
 {
 	switch (menu) {
@@ -272,6 +272,7 @@ void song_select::callback_change_mods(int i)
 		for (auto& m : selected_mods) {
 			m = false;
 		}
+		selected_mods_string.clear();
 		return;
 	}
 
@@ -384,6 +385,7 @@ void song_select::load_score_list(const std::filesystem::path path, const std::v
 		score.score = data.score;
 		score.acc_text = format_floats(data.accuracy) + "%";
 		score.mod_array = data.mod_array;
+		score.filename = s;
 		for (int i = 0; i < score.mod_array.size(); i++) {
 			if(score.mod_array[i])
 				if (score.mod_text.empty()) {
@@ -432,7 +434,6 @@ void song_select::load_score_list(const std::filesystem::path path, const std::v
 	});
 }
 
-
 void song_select::update() {
 	
 	
@@ -461,7 +462,8 @@ void song_select::update() {
 		float y_origin, x_origin;
 
 		// check for clicks
-		if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+		if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+			// entries
 			if (cursor.x > screen_height * 0.1 && cursor.y < screen_height * 0.9) {
 				for (int i = 0; i < visible_entries; ++i) {
 					y_origin = screen_height_ratio * (y_offset + 32.0f + i * entry_row_height - frac * entry_row_height);
@@ -482,6 +484,27 @@ void song_select::update() {
 					}
 				}
 			}
+			// scores
+
+			for (int i = 0; i < score_list.size(); i++) {
+				if (CheckCollisionPointRec(cursor, { 5.f * screen_height_ratio, (153.f + 53.f * i) * screen_height_ratio, 384.f * screen_height_ratio, 48.f * screen_height_ratio })) {
+					auto path = db::fs_path / "maps" / std::to_string(selected_map.beatmap_set_id) / std::to_string(selected_map.beatmap_id) / score_list[i].filename;
+
+					std::ifstream file(path, std::ios::binary);
+
+					results_struct res;
+					const auto n = 512 - sizeof(res);
+					char buffer[n];
+
+					file.read((char*)(&res), sizeof(res));
+					file.read(buffer, n);
+
+					g_result_screen = new result_screen(res, selected_map);
+					game_state = RESULT_SCREEN;
+				}
+			}
+		}
+			
 		if (IsKeyPressed(KEY_ENTER)) enter_game(selected_map);
 		if (IsKeyPressed(KEY_F1)) submenu = S_SUBMENU::MODS;
 		if (IsKeyPressed(KEY_F2)) {
@@ -625,7 +648,7 @@ void song_select::draw() {
 	for (int i = 0; i < score_list.size(); i++) {
 		DrawRectangleRec({ 5.f * screen_height_ratio, (153.f + 53.f * i) * screen_height_ratio, 384.f * screen_height_ratio, 48.f * screen_height_ratio }, { 0, 0, 0, 80 });
 		score_entry& s = score_list[i];
-		Rectangle rank_to_draw;
+		Rectangle rank_to_draw = tex[(int)SPRITE::RankDSmall];
 		switch (s.rank) {
 		case RANK_XH:
 			rank_to_draw = tex[(int)SPRITE::RankXHSmall];

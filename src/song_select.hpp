@@ -17,7 +17,7 @@ struct score_entry {
 	Vector2 hover_text_size;
 
 	std::string hover_text;
-
+	std::string filename;
 	RANKS rank;
 };
 
@@ -38,8 +38,7 @@ class song_select {
 		static int selected_map_list_index;
 		
 	private:
-		
-		static void load_score(const std::string &filename);
+
 		static void load_score_list(const std::filesystem::path path, const std::vector<std::string> scores);
 
 		static inline std::vector<score_entry> score_list;

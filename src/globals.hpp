@@ -11,6 +11,7 @@
 #include <array>
 #include <iostream>
 #include <tuple>
+#include <functional>
 
 // Texture atlas stuff
 
@@ -152,7 +153,7 @@ struct button_callback {
 	SPRITE sprite;
 	Vector2 pos;
 	Vector2 scale;
-	void(*func)(int);
+	std::function<void(int)> func;
 	int id;
 	void(*draw)(button_callback&);
 	std::string text;
@@ -184,6 +185,7 @@ enum GAME_STATES {
 	IMPORTING,
 	SONG_SELECT,
 	INGAME,
+	REPLAY,
 	RESULT_SCREEN
 };
 
@@ -311,12 +313,13 @@ inline float screen_width = 1024.0f;
 inline float screen_height = 768.0f;
 inline int screen_refresh_rate = 60.0f;
 
-inline float settings_cursor_scale = 1.0f;
+inline float settings_cursor_scale = 0.5f;
 inline float settings_mouse_sens = 1.0f;
 inline float settings_volume_master = 100.0f;
 inline float settings_volume_music = 100.0f;
 inline float settings_volume_sfx = 100.0f;
 inline float ur_bar_size = 1.0f;
+inline float settings_background_dim = 80.0f;
 
 inline bool settings_sliderend_rendering = false;
 inline bool settings_render_300s = true;
@@ -328,8 +331,10 @@ inline bool settings_render_play_area = false;
 inline bool settings_render_ingame_ui = true;
 inline bool settings_fullscreen = false;
 inline bool settings_display_background_ingame = false;
-inline bool settings_render_key_overlay = false;
+inline bool settings_render_key_overlay = true;
 inline bool settings_ingame_mouse_buttons = false;
+inline bool settings_record_replays = true;
+inline bool settings_scale_cursor_size_with_circle_size = false;
 
 
 inline std::string player_name = "Player";
@@ -366,7 +371,7 @@ inline float frame_time = 0.0f;
 
 inline constexpr int DB_VERSION = 8;
 inline constexpr int RESULTS_VERSION = 1;
-inline constexpr std::string_view CLIENT_VERSION = "a2026.0302";
+inline constexpr std::string_view CLIENT_VERSION = "a2026.0511";
 
 inline float screen_width_ratio = (float)screen_width / 1024.0f;
 inline float screen_height_ratio = (float)screen_height / 768.0f;

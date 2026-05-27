@@ -1,13 +1,14 @@
 #include "result_screen.hpp"
 #include "song_select.hpp"
+#include "ingame.hpp"
 #include <format>
 
-result_screen::result_screen(results_struct results)
+result_screen::result_screen(results_struct results, file_struct map)
 {
+	this->map = map;
 	this->results = results;
 	beatmap_header = std::string(results.artist.data()) + " - " + std::string(results.title.data()) + " [" + std::string(results.difficulty.data()) + "]";
 	beatmap_header_2 = "Beatmap by " + std::string(results.creator.data());
-	save_score();
 	StopMusicStream(music);
 	score_str = get_score_string(results.score);
 
@@ -60,6 +61,21 @@ result_screen::result_screen(results_struct results)
 		cv_ur = "\n(" + format_floats(results.unstable_rate[1] / results.map_speed) + " cv.UR)";
 
 	ur_text = "Accuracy:\nError: " + format_floats(results.unstable_rate[0]) + "ms to " + format_floats(results.unstable_rate[2]) + "ms avg\nUnstable Rate: " + format_floats(results.unstable_rate[1]) + cv_ur;
+
+	// check if replay exists
+	auto path = db::fs_path / "maps" / std::to_string(results.set_id) / std::to_string(results.map_id);
+    
+	std::ifstream replay_file(path / (std::to_string(results.time.time_since_epoch().count()) + ".replay"), std::ios::binary);
+	if (replay_file.good()) {
+		replay_exists = true;
+	}
+
+	replay_button = {
+		SPRITE::TOTAL_COUNT,
+		{screen_width - 356 * screen_height_ratio, 584 * screen_height_ratio}, {320 * screen_height_ratio, 70 * screen_height_ratio},
+		[this](int id) { this->callback_play_replay(id); }, 0, nullptr, "Watch Replay", { 30, 0, 255, 255 }
+	};
+
 }
 
 void result_screen::draw() {
@@ -108,9 +124,16 @@ void result_screen::draw() {
 	DrawTextEx(aller_l, beatmap_header.c_str(), { 4 * sh, 4 * sh}, 36 * sh, 0, WHITE);
 	DrawTextEx(aller_l, beatmap_header_2.c_str(), { 4 * sh, 40 * sh }, 24 * sh, 0, WHITE);
 	DrawTextEx(aller_r, "Ranking", { screen_width - 356.0f * sh, 4 * sh}, 108 * sh, 0, WHITE);
+
+	if (replay_exists) {
+		draw_button(replay_button);
+	}
 }
 
 void result_screen::update() {
+	if (replay_exists) {
+		update_button(replay_button);
+	}
 	if(IsKeyPressed(KEY_B)) {
 		stop_sound_effect(channel_music);
 		delete g_result_screen;
@@ -119,25 +142,21 @@ void result_screen::update() {
 	}
 }
 
-void result_screen::save_score() const
+void result_screen::callback_play_replay(int)
 {
-	auto path = db::fs_path / "maps" / std::to_string(results.set_id) / std::to_string(results.map_id);
-	if (!std::filesystem::is_directory(path)) {
-		std::filesystem::create_directory(path);
-	}
-
-	std::ofstream file(path / (std::to_string(results.time.time_since_epoch().count()) + ".score"), std::ios::binary);
-	if (!file) {
-		std::cout << "Failed to create score file!";
+	if (!replay_exists)
 		return;
+	stop_sound_effect(channel_music);
+	std::string replay_path = (db::fs_path / "maps" / std::to_string(results.set_id) / std::to_string(results.map_id) / (std::to_string(results.time.time_since_epoch().count()) + ".replay")).generic_string();
+
+	float score_multiplier = 1.0f;
+	for (int i = 0; i < results.mod_array.size(); i++) {
+		if (results.mod_array[i]) {
+			score_multiplier *= std::get<2>(mod_info[i]);
+		}
 	}
 
-	// allocate 512 bytes per score just in case we need to add something later on
-	const auto n = 512 - sizeof(results);
-	char buffer[n] = { 0 };
-
-	file.write((char*)(&results), sizeof(results));
-	file.write(buffer, n);
-
-	file.close();
+	g_ingame = new ingame(song_select::selected_map, results.mod_array, score_multiplier, true, replay_path);
+	game_state = REPLAY;
+	return;
 }

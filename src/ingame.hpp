@@ -90,18 +90,28 @@ struct TimingPoints {
 	uint8_t sample_set;
 };
 
+struct ReplayFrame {
+	Vector2 cursor_pos;
+	std::array<bool, 4> keys;
+	float time_jump;
+};
+
 class ingame {
 public:
-	ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods);
+	ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods, float mod_mult, bool is_replay, std::string replay_path);
 	void update();
+	void update_replay();
 	void draw();
 
 private:
+	double start_time = 0;
+
 	inline void object_hit(const HitObjectEntry& pos, const HitResult res);
 	inline void recalculate_score_acc(const HitResult res);
 	inline void combo_break();
 	inline void add_unstable_rate_data(float ur);
 	inline void update_keys(int i);
+	inline void map_end();
 	inline void play_hitsound(uint8_t snd, uint8_t volume);
 
 	void check_hit(bool notelock_check);
@@ -143,6 +153,14 @@ private:
 	std::array<int, 4> taps = { 0, 0, 0, 0 };
 	std::array<float, 4> taps_str_x = { 0.f, 0.f, 0.f, 0.f };
 	std::array<std::string, 4> taps_str = { std::string("K1"), std::string("K2"), std::string("M1"), std::string("M2") };
+
+	bool key1_pressed_r = false, key2_pressed_r = false, m1_pressed_r = false, m2_pressed_r = false;
+	bool key1_released_r = false, key2_released_r = false, m1_released_r = false, m2_released_r = false;
+	bool key1_down_r = false, key2_down_r = false, m1_down_r = false, m2_down_r = false; // for replays
+
+	std::array<bool*, 4> tap_variables_press_r = { &key1_pressed_r, &key2_pressed_r, &m1_pressed_r, &m2_pressed_r };
+	std::array<bool*, 4> tap_variables_release_r = { &key1_released_r, &key2_released_r, &m1_released_r, &m2_released_r };
+
 	std::array<bool*, 4> tap_variables = { &key1_down, &key2_down, &m1_down, &m2_down };
 
 	uint32_t score = 0;
@@ -195,4 +213,14 @@ private:
 	float flashlight_dim_target = 2.5f;
 	Vector2 flashlight_pos = { 0.f, 0.f };
 	Vector2 flashlight_pos_target = { 0.f, 0.f };
+
+	bool is_replay = false;
+	float replay_frame_counter = 0;
+	static constexpr float replay_frametime = 33.3f;
+	int on_replay_frame = 0;
+	float on_replay_frame_rem = 0.0f;
+	float accumulated_replay_time = 0.0f;
+	std::vector<ReplayFrame> replay_frames;
+	std::vector<uint32_t> replay_frames_compressed;
+	ReplayFrame current_replay_frame = { {0, 0}, {0, 0, 0, 0}, 0 };
 };

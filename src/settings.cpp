@@ -360,7 +360,7 @@ void settings::update_dropdown_list(gui_dropdown_list& b) {
 			b.list_open = !b.list_open;
 		}
 		if (b.list_open) {
-			if (!CheckCollisionPointRec(cursor, b.pos_dim)) {
+			if (!CheckCollisionPointRec(cursor, { b.pos_dim.x, b.pos_dim.y, b.pos_dim.width, b.pos_dim.height + b.element_size })) {
 				b.list_open = false;
 				b.scroll_pos = 0;
 			}
@@ -382,7 +382,7 @@ void settings::update_dropdown_list(gui_dropdown_list& b) {
 			b.scroll_pos = 0;
 		}
 
-		if (m1_pressed && CheckCollisionPointRec(cursor, b.pos_dim)) {
+		if (m1_pressed && CheckCollisionPointRec(cursor, { b.pos_dim.x, b.pos_dim.y, b.pos_dim.width, b.pos_dim.height + b.element_size })) {
 			int begin_height = b.scroll_pos + b.pos_dim.y + b.element_size;
 			if (cursor.y < begin_height) return;
 			int index = (cursor.y - begin_height) / b.element_size;

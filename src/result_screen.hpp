@@ -4,10 +4,10 @@
 
 class result_screen {
 public:
-	result_screen(results_struct results);
+	result_screen(results_struct results, file_struct map);
 	void draw();
 	void update();
-	void save_score() const;
+	void callback_play_replay(int);
 private:
 	results_struct results;
 	std::string beatmap_header;
@@ -17,4 +17,7 @@ private:
 	int channel_music;
 	Rectangle rank_to_draw;
 	std::string ur_text;
+	bool replay_exists = false;
+	button_callback replay_button;
+	file_struct map;
 };

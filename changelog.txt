@@ -169,10 +169,23 @@ a2026.0302
 (+) Scores are now saved
 (+) Scores show up as a list on every map
 
+a2026.0305
 
+(*) Fixed dropdown list hit collision
 
+a2026.0307
 
+(+) You can now click on scores to show the result screen
 
+a2026.0511
+
+(+) Replay system added they can be saved and viewed
+(*) "Ignore map colors" now works
+
+İNGİLİZCE OLMAYAN PATHLERDE MAP EXTRACT ÇALIŞMIYOR!!!!
+chiisana koi no uta marianna's insane diffinde bi sliderın sonu buglu amk niyeeeee
+YO bro you forgot to darken the screen while sliders are being held for flashlight
+add settings_record_Replays and bg dim to settings
 add cursor scale with circle size 
 add remaining mods functionalities
 fix slider red ticks going too crazy on sharp corners
@@ -183,7 +196,6 @@ add score saving
 for modifying map lists: always load maps in same order, use another file to keep track of grades/unplayed status, load by index? probably a terrible idea
 
 fix:
-reset all mods doesnt update the string
 Keys dont block mouse clicks as they should
 map speed fucking up spinners
 slider hit sounds can fuck up at soft/drum/normal transitions
@@ -200,6 +212,7 @@ add:
 (DONE) sound control
 (DONE) fix number transparencies on notes
 (DONE) add toggleable key overlay
+(DONE) record replay (toggleable for performance)
 
 (wip) mods (with rate change)
 custom sounds
@@ -210,7 +223,7 @@ change key settings (grid/list)
 A good main menu
 menu transitions so it doesnt look shit.
 
-record replay (toggleable for performance)
+
 a benchmark button (auto mod prerequisite) would be cool
 
 
@@ -226,5 +239,3 @@ change key settings, replay record, all mods working, no major bugs, better song
 
 for release:
 offline profile, osu api support, custom map sfx support, (partial) custom skin support (most ambitious), benchmark button
-
-resolution tuşlkarına en aşağıdakine basılmıyo bazen idk

@@ -4,10 +4,15 @@
 #include <iostream>
 #include <rlgl.h>
 #include <numeric>
+#include "db.hpp"
 #include "result_screen.hpp"
 #include "globals.hpp"
+#include "song_select.hpp"
 
-ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
+ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods, float mod_mult, bool is_replay, std::string replay_path) {
+
+#pragma region init variables
+	this->is_replay = is_replay;
 	mods = sel_mods;
 	map_info = map;
 
@@ -45,6 +50,9 @@ ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
 	approach_rate_milliseconds = (map_info.ar < 5.0f) ? int(1800 - 120 * map_info.ar) : int(1200 - 150 * (map_info.ar - 5));
 
 	circle_radius = playfield_scale * (54.4f - (4.48f * map_info.cs));
+	uint16_t circle_cnt = 0;
+	uint16_t slider_cnt = 0;
+	uint16_t spinner_cnt = 0;
 
 	auto file = std::filesystem::current_path() / "maps" / std::to_string(map.beatmap_set_id) / map.osu_filename;
 	std::string line;
@@ -55,11 +63,8 @@ ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
 	int state = 0; // 0 = before timing points, 1 = timing points, 2 = colours
 	float current_bpm = 0;
 	float slider_mult = 0;
-
-	uint16_t circle_cnt = 0;
-	uint16_t slider_cnt = 0;
-	uint16_t spinner_cnt = 0;
-
+#pragma endregion
+#pragma region parse file
 	while (std::getline(infile, line)) {
 		chomp_cr(line);
 		if (line == "[HitObjects]") {
@@ -104,6 +109,7 @@ ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
 			timing_points.push_back(TimingPoints{ offset, slider_mult, ms_beat, volume, (uint8_t)sample_set});
 		}
 		else if (state == 2) {
+			if (settings_ignore_map_colors) continue;
 			if (line.starts_with("Combo")) {
 				size_t idx = line.find(":");
 				size_t first_comma = line.find(",", idx);
@@ -123,7 +129,7 @@ ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
 
 	float ms_per_tick = timing_points[timing_point_idx].ms_beat / map_info.slider_tickrate;
 	tick_draw_delay = std::min(40.0f, ms_per_tick * 0.5f);
-
+#pragma region parse hit objects
 	while (std::getline(infile, line)) {
 		static Vector2 last_object_pos = { -1000.0f, -1000.0f };
 		static bool stack_leniency_downward = false;
@@ -703,8 +709,9 @@ ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
 	if (!hit_objects.empty()) {
 		hit_objects.back().last_in_combo = true;
 	}
-
-	map_begin_time = -(1000.0f * map_speed) - 20.0f; //-(float)GetTime() * 1000.0f * map_speed - (1000.0f * map_speed);
+#pragma endregion
+#pragma endregion
+	map_begin_time = -(1000.0f * map_speed);
 
 	hit_objects.shrink_to_fit();
 	sliders.shrink_to_fit();
@@ -736,7 +743,50 @@ ingame::ingame(file_struct map, std::array<bool, (int)MODS::COUNT> sel_mods) {
 	difficulty_multiplier = (int)std::round((map_info.hp + map_info.cs + map_info.od + std::clamp((float)total_hit_objects / drain_time * 8.0f, 0.0f, 16.0f)) / 38.0f * 5.0f);
 	for(int i = 0; i < 4; i++)
 		taps_str_x[i] = screen_width - 26.f * screen_height_ratio - (MeasureTextEx(aller_r, taps_str[i].c_str(), 18.f * screen_height_ratio, 0).x) / 2;
+
+	if (!settings_ingame_mouse_buttons) {
+		m1_down = false;
+		m2_down = false;
+	}
+
+	if (is_replay) {
+		tap_variables = { &key1_down_r, &key2_down_r, &m1_down_r, &m2_down_r };
+		std::ifstream replay_file(replay_path, std::ios::binary);
+		if (!replay_file) {
+			std::cerr << "Failed to open replay file: " << replay_path << std::endl;
+
+			game_state = MAIN_MENU;
+			delete g_ingame;
+			g_ingame = nullptr;
+
+			return;
+		}
+
+		uint32_t size = 0;
+		replay_file.read(reinterpret_cast<char*>(&size), sizeof(size));
+		replay_frames_compressed.resize(size);
+		replay_file.read(reinterpret_cast<char*>(replay_frames_compressed.data()), size * sizeof(uint32_t));
+
+		for (uint32_t data : replay_frames_compressed) {
+			ReplayFrame frame;
+			frame.cursor_pos.x = (data & 0x3FF) / 2.0f;
+			frame.cursor_pos.y = ((data >> 10) & 0x3FF) / 2.0f;
+			for (int i = 0; i < 4; i++) {
+				frame.keys[i] = ((data >> (20 + i)) & 0x1u);
+			}
+			frame.time_jump = (data >> 24) & 0xFF;
+			replay_frames.push_back(frame);
+		}
+
+		replay_file.close();
+
+		m1_pressed = false;
+		m2_pressed = false;
+		accumulated_replay_time = map_begin_time;
+	}
+
     std::cout << "Map loaded: " << circle_cnt << " circles, " << slider_cnt << " sliders, " << spinner_cnt << " spinners.\n" << "Max combo: " << total_max_combo << "\n";
+	start_time = map_speed * GetTime() * 1000.0f;
 }
 
 void ingame::play_hitsound(uint8_t snd, uint8_t volume) {
@@ -960,10 +1010,154 @@ void ingame::update_keys(int i) {
 	taps_str_x[i] = screen_width - 26.f * screen_height_ratio - (MeasureTextEx(aller_r, taps_str[i].c_str(), 18.f * screen_height_ratio, 0).x) / 2;
 }
 
-void ingame::update() {
+void ingame::map_end() {
+	results_struct res;
+	if (!is_replay) {
+		res.results_version = RESULTS_VERSION;
+		res.time = std::chrono::time_point_cast<std::chrono::seconds>(std::chrono::system_clock::now());
+
+		res.artist.fill('\0');
+		std::size_t count = std::min(map_info.artist.size(), res.artist.size() - 1);
+		std::memcpy(res.artist.data(), map_info.artist.data(), count);
+
+		res.title.fill('\0');
+		count = std::min(map_info.title.size(), res.title.size() - 1);
+		std::memcpy(res.title.data(), map_info.title.data(), count);
+
+		res.difficulty.fill('\0');
+		count = std::min(map_info.difficulty.size(), res.difficulty.size() - 1);
+		std::memcpy(res.difficulty.data(), map_info.difficulty.data(), count);
+
+		res.creator.fill('\0');
+		count = std::min(map_info.creator.size(), res.creator.size() - 1);
+		std::memcpy(res.creator.data(), map_info.creator.data(), count);
+
+		res.player_name.fill('\0');
+		count = std::min(player_name.size(), res.player_name.size() - 1);
+		std::memcpy(res.player_name.data(), player_name.data(), count);
+
+		res.accuracy = accuracy;
+		res.score = score;
+		res.max_combo = max_combo;
+		res.hit300s = hit300s;
+		res.hit100s = hit100s;
+		res.hit50s = hit50s;
+		res.misses = misses;
+		res.geki = hitgekis;
+		res.katu = hitkatus;
+		res.map_speed = map_speed;
+		res.set_id = map_info.beatmap_set_id;
+		res.map_id = map_info.beatmap_id;
+		res.mod_array = mods;
+
+
+
+		std::array<float, 3> ur_values = { 0.0f, 0.0f, 0.0f };
+		sort(ur_per_note.begin(), ur_per_note.end());
+
+		int n = ur_per_note.size();
+
+		if (!ur_per_note.empty()) {
+			ur_values[0] = ur_per_note[n * 1 / 10]; // 10th percentile
+			ur_values[2] = ur_per_note[n * 9 / 10]; // 90th percentile
+
+			float total_ur = std::accumulate(ur_per_note.begin(), ur_per_note.end(), 0);
+			float average = total_ur / (float)n;
+
+			float variance = 0.0f;
+			for (float& x : ur_per_note) {
+				variance += powf(x - average, 2);
+			}
+			variance /= n;
+			variance = 10.0f * sqrtf(variance);
+
+			ur_values[1] = variance;
+		}
+
+		res.unstable_rate = ur_values;
+		if (total_max_combo == max_combo)
+			res.perfect_combo = true;
+		else
+			res.perfect_combo = false;
+		// calculate rank
+		RANKS rank = RANK_D;
+		int all_objects = hit300s + hit100s + hit50s + misses;
+
+		if (accuracy == 100.0f) {
+			if (mods[(int)MODS::HD] || mods[(int)MODS::FL]) rank = RANK_XH;
+			else rank = RANK_X;
+		}
+		else if (hit300s >= all_objects * 0.9f) {
+			if (misses == 0 && hit50s <= all_objects * 0.01f) {
+				if (mods[(int)MODS::HD] || mods[(int)MODS::FL]) rank = RANK_SH;
+				else rank = RANK_S;
+			}
+			else rank = RANK_A;
+		}
+		else if (hit300s >= all_objects * 0.8f) {
+			if (misses == 0) rank = RANK_A;
+			else rank = RANK_B;
+		}
+		else if (hit300s >= all_objects * 0.6f) {
+			if (misses == 0 && hit300s >= all_objects * 0.7f) rank = RANK_B;
+			else rank = RANK_C;
+		}
+		res.rank = rank;
+
+		// save score
+		auto path = db::fs_path / "maps" / std::to_string(res.set_id) / std::to_string(res.map_id);
+		if (!std::filesystem::is_directory(path)) {
+			std::filesystem::create_directory(path);
+		}
+
+		std::ofstream file(path / (std::to_string(res.time.time_since_epoch().count()) + ".score"), std::ios::binary);
+		if (!file) {
+			std::cout << "Failed to create score file!";
+			return;
+		}
+
+		// allocate 512 bytes per score just in case we need to add something later on
+
+		const auto nn = 512 - sizeof(res);
+		char buffer[nn] = { 0 };
+
+		file.write((char*)(&res), sizeof(res));
+		file.write(buffer, n);
+
+		file.close();
+
+
+		// save replay
+		if (settings_record_replays) {
+			std::ofstream replay_file(path / (std::to_string(res.time.time_since_epoch().count()) + ".replay"), std::ios::binary);
+
+			auto size = replay_frames_compressed.size();
+
+			replay_file.write(reinterpret_cast<char*>(&size), sizeof(size));
+			replay_file.write(reinterpret_cast<char*>(replay_frames_compressed.data()), size * sizeof(uint32_t));
+
+			replay_file.close();
+		}
+	}
+	else {
+		delete g_ingame;
+		g_ingame = nullptr;
+		song_select::init(false);
+		game_state = SONG_SELECT;
+		return;
+	}
+	
+	g_result_screen = new result_screen(res, map_info);
+	delete g_ingame;
+	g_ingame = nullptr;
+	game_state = RESULT_SCREEN;
+	return;
+}
+
+void ingame::update_replay() {
 
 	if (IsKeyPressed(KEY_ESCAPE)) {
-		
+
 		if (!paused) {
 			PauseMusicStream(music);
 			paused_time = GetTime();
@@ -978,22 +1172,46 @@ void ingame::update() {
 
 	}
 	else {
+		map_time = map_speed * GetTime() * 1000.0f - start_time + map_begin_time;
+		//map_time_accumulator += float(frame_time * 1000.0f * map_speed);
+		//map_time = map_begin_time + map_time_accumulator;
+
+		while (accumulated_replay_time + replay_frames[std::min(on_replay_frame + 1, (int)replay_frames.size() - 1)].time_jump < map_time && on_replay_frame < (int)replay_frames.size() - 1) {
+			on_replay_frame++;
+			current_replay_frame = replay_frames[on_replay_frame];
+
+			accumulated_replay_time += current_replay_frame.time_jump;
+			std::cout << "Replay frame: " << on_replay_frame << "/" << replay_frames.size() << " pos:" << current_replay_frame.cursor_pos.x << "," << current_replay_frame.cursor_pos.y  << "Time jump: " << current_replay_frame.time_jump << "ms, accumulated replay time: " << accumulated_replay_time << "ms" << "map time: " << map_time << "ms\n";
+		}
+
+		float frame_progress = (map_time - accumulated_replay_time) / (0.001 + replay_frames[std::min(on_replay_frame + 1, (int)replay_frames.size() - 1)].time_jump);
+		frame_progress = std::clamp(frame_progress, 0.0f, 1.0f);
+
+		// real cursor position
+		cursor = replay_frames[on_replay_frame].cursor_pos;
+
+		cursor.x *= playfield_scale;
+		cursor.y *= playfield_scale;
+
+		cursor.x += playfield_offset_x;
+		cursor.y += playfield_offset_y;
+
+		for (int i = 0; i < 4; i++) {
+			bool prev = *tap_variables[i];
+			bool curr = replay_frames[on_replay_frame].keys[i];
+
+			*tap_variables_press_r[i] = (!prev && curr);
+
+			if(*tap_variables_press_r[i]) {
+				std::cout << "Key " << i << " pressed at time " << map_time << "ms\n";
+			}
+
+			*tap_variables_release_r[i] = (prev && !curr);
+
+			*tap_variables[i] = curr;
+		}
 
 		
-
-		// map_time = map_begin_time + (float)GetTime() * 1000.0f * map_speed;
-		map_time_accumulator += float(GetFrameTime() * 1000.0f * map_speed);
-		map_time = map_begin_time + map_time_accumulator;
-
-		if (song_init == 2) {
-			if (abs(GetMusicTimePlayed(music) * 1000.0f - 20.0f - map_time) > 10.0f) {
-				// try to resync
-				std::cout << "Music desynced - trying to resync; difference of " << abs(GetMusicTimePlayed(music) * 1000.0f - map_time) << "\n";
-
-				map_time_accumulator = 0;
-				map_begin_time = GetMusicTimePlayed(music) * 1000.0f - 20.0f;
-			}
-		}
 
 		if (on_object >= (int)hit_objects.size()) { // Check for end of map
 			accumulated_end_time += frame_time;
@@ -1001,105 +1219,8 @@ void ingame::update() {
 			if (hit_objects[hit_objects.size() - 1].end_time > GetMusicTimePlayed(music) * 1000.0f + 500) {
 				StopMusicStream(music);
 			}
-
-			if (accumulated_end_time > 2.0f || IsKeyPressed(KEY_ESCAPE)) {
-				results_struct res;
-				res.results_version = RESULTS_VERSION;
-				res.time = std::chrono::time_point_cast<std::chrono::seconds>(std::chrono::system_clock::now());
-
-				res.artist.fill('\0');
-				std::size_t count = std::min(map_info.artist.size(), res.artist.size() - 1);
-				std::memcpy(res.artist.data(), map_info.artist.data(), count);
-
-				res.title.fill('\0');
-				count = std::min(map_info.title.size(), res.title.size() - 1);
-				std::memcpy(res.title.data(), map_info.title.data(), count);
-
-				res.difficulty.fill('\0');
-				count = std::min(map_info.difficulty.size(), res.difficulty.size() - 1);
-				std::memcpy(res.difficulty.data(), map_info.difficulty.data(), count);
-
-				res.creator.fill('\0');
-				count = std::min(map_info.creator.size(), res.creator.size() - 1);
-				std::memcpy(res.creator.data(), map_info.creator.data(), count);
-				
-				res.player_name.fill('\0');
-				count = std::min(player_name.size(), res.player_name.size() - 1);
-				std::memcpy(res.player_name.data(), player_name.data(), count);
-
-				res.accuracy = accuracy;
-				res.score = score;
-				res.max_combo = max_combo;
-				res.hit300s = hit300s;
-				res.hit100s = hit100s;
-				res.hit50s = hit50s;
-				res.misses = misses;
-				res.geki = hitgekis;
-				res.katu = hitkatus;
-				res.map_speed = map_speed;
-				res.set_id = map_info.beatmap_set_id;
-				res.map_id = map_info.beatmap_id;
-				res.mod_array = mods;
-				
-
-
-				std::array<float, 3> ur_values = { 0.0f, 0.0f, 0.0f };
-				sort(ur_per_note.begin(), ur_per_note.end());
-
-				int n = ur_per_note.size();
-
-				if (!ur_per_note.empty()) {
-					ur_values[0] = ur_per_note[n * 1 / 10]; // 10th percentile
-					ur_values[2] = ur_per_note[n * 9 / 10]; // 90th percentile
-
-					float total_ur = std::accumulate(ur_per_note.begin(), ur_per_note.end(), 0);
-					float average = total_ur / (float)n;
-
-					float variance = 0.0f;
-					for (float& x : ur_per_note) {
-						variance += powf(x - average, 2);
-					}
-					variance /= n;
-					variance = 10.0f * sqrtf(variance);
-
-					ur_values[1] = variance;
-				}
-
-				res.unstable_rate = ur_values;
-				if (total_max_combo == max_combo)
-					res.perfect_combo = true;
-				else
-					res.perfect_combo = false;
-				// calculate rank
-				RANKS rank = RANK_D;
-				int all_objects = hit300s + hit100s + hit50s + misses;
-
-				if (accuracy == 100.0f) {
-					if (mods[(int)MODS::HD] || mods[(int)MODS::FL]) rank = RANK_XH;
-					else rank = RANK_X;
-				}
-				else if (hit300s >= all_objects * 0.9f) {
-					if (misses == 0 && hit50s <= all_objects * 0.01f) {
-						if (mods[(int)MODS::HD] || mods[(int)MODS::FL]) rank = RANK_SH;
-						else rank = RANK_S;
-					}
-					else rank = RANK_A;
-				}
-				else if (hit300s >= all_objects * 0.8f) {
-					if (misses == 0) rank = RANK_A;
-					else rank = RANK_B;
-				}
-				else if (hit300s >= all_objects * 0.6f) {
-					if (misses == 0 && hit300s >= all_objects * 0.7f) rank = RANK_B;
-					else rank = RANK_C;
-				}
-				res.rank = rank;
-
-				g_result_screen = new result_screen(res);
-				delete g_ingame;
-				g_ingame = nullptr;
-				game_state = RESULT_SCREEN;
-				return;
+			if (accumulated_end_time > 2.0f || IsKeyPressed(KEY_ESCAPE)) { // End map & show results screen
+				map_end();
 			}
 			return;
 		}
@@ -1142,6 +1263,411 @@ void ingame::update() {
 				map_time_accumulator = 0;
 				skippable = false;
 				flashlight_dim_target = 1.0f;
+				start_time = map_speed * GetTime() * 1000.0f;
+				song_init = 2;
+				std::cout << "SKIPPED! GetTimePlayed: " << GetMusicTimePlayed(music) * 1000.0f << ", map_time: " << map_time;
+			}
+			break;
+		case 2: // map ongoing
+			int prev_on_object = on_object;
+			int check_cnt = 0;
+		update_object_jmp: // do all this for the 2 objects to prevent notelock
+
+			if (key1_pressed_r) {
+				if (check_cnt < 1) update_keys(0);
+				check_hit(bool(check_cnt));
+			}
+			if (key2_pressed_r) {
+				if (check_cnt < 1) update_keys(1);
+				check_hit(bool(check_cnt));
+			}
+			if (m1_pressed_r && !key1_down_r) {
+				if (check_cnt < 1) update_keys(2);
+				key1_down_r = true;
+				m1_down_r = true;
+				check_hit(bool(check_cnt));
+			}
+			if (m2_pressed_r && !key2_down_r) {
+				if (check_cnt < 1) update_keys(3);
+				key2_down_r = true;
+				m2_down_r = true;
+				check_hit(bool(check_cnt));
+			}
+			if (key1_released_r) {
+				key1_down_r = false;
+			}
+			if (key2_released_r) {
+				key2_down_r = false;
+			}
+			if (m1_released_r) {
+				key1_down_r = false;
+				m1_down_r = true;
+			}
+			if (m2_released_r) {
+				key2_down_r = false;
+				m2_down_r = false;
+			}
+			
+			HitObjectEntry ho;
+			if (on_object < (int)hit_objects.size()) ho = hit_objects[on_object];
+			else break;
+
+			switch (ho.type) {
+			case CIRCLE: {
+				// check for disappearance
+
+				while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time - hit_window_50) {
+					object_hit(ho, MISS);
+					on_object++;
+				}
+				break;
+			}
+			case SLIDER: {
+				auto& s = sliders[ho.idx];
+
+				if (!s.head_hit_checked) {
+					if (ho.time + hit_window_50 < map_time) {
+						// std::cout << "Slider head miss at time " << ho.time << "\n";
+						s.head_hit_checked = true;
+						combo_break();
+					}
+				}
+
+				if (key1_down_r || key2_down_r) { // check if slider is being tracked rn
+					if (s.tracked) {
+						s.tracked = CheckCollisionPointCircle(cursor, { s.slider_ball_pos.x, s.slider_ball_pos.y }, circle_radius * 0.94f * 2.4f);
+					}
+					else {
+						s.tracked = CheckCollisionPointCircle(cursor, { s.slider_ball_pos.x, s.slider_ball_pos.y, }, circle_radius * 0.94f);
+					}
+				}
+				else {
+					s.tracked = false;
+				}
+
+				// check for slider tick & reverse arrow hits
+				if (s.on_slider_tick < s.slider_ticks.size()) {
+					if (s.slider_ticks[s.on_slider_tick].z <= map_time) { // time to check
+						if (key1_down_r || key2_down_r) {
+							bool hit_tick = CheckCollisionPointCircle(cursor, { s.slider_ticks[s.on_slider_tick].x, s.slider_ticks[s.on_slider_tick].y }, circle_radius * 0.94f * slider_body_hit_radius);
+							if (hit_tick) {
+								s.successful_hits++;
+								combo++;
+
+								if (s.slider_ticks[s.on_slider_tick].w == 2) { // reverse arrow
+									score += 30;
+									uint8_t snd = s.hitsound_list[s.hitsound_index];
+									uint8_t snd_vol = s.hitsound_list_volume[s.hitsound_index];
+									s.hitsound_index++;
+									play_hitsound(snd, snd_vol);
+								}
+								else {
+									score += 10;
+								}
+
+								s.slider_ticks[s.on_slider_tick].w += 4; // mark as hit
+								if (max_combo < combo) max_combo = combo;
+								goto slider_tick_check_continue;
+							}
+
+						}
+						combo_break();
+					slider_tick_check_continue:
+						s.on_slider_tick++;
+					}
+				}
+
+				// check end hit
+				if (!s.tail_hit_checked && ho.end_time - s.slider_end_check_time < map_time) {
+					s.tail_hit_checked = true;
+					if (key1_down_r || key2_down_r) {
+						if (s.repeat_count % 2 == 0) // even repeat count, end is at beginning
+							s.tail_hit = CheckCollisionPointCircle(cursor, { ho.pos.x, ho.pos.y }, circle_radius * 0.94f * slider_body_hit_radius);
+						else // odd repeat count, end is at end
+							s.tail_hit = CheckCollisionPointCircle(cursor, { s.path.back().x, s.path.back().y }, circle_radius * 0.94f * slider_body_hit_radius);
+						combo++;
+						score += 30;
+					}
+				}
+
+				// check for disappearance
+				while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time) {
+					// check end hit
+
+					uint32_t successful_hits = s.successful_hits;
+					if (s.head_hit) successful_hits++;
+					if (s.tail_hit) successful_hits++;
+
+					// Vector2 end_pos;
+					if (s.repeat_count % 2 == 0) // even repeat count, end is at beginning
+						;// end_pos = ho.pos;
+					else // odd repeat count, end is at end
+						ho.pos = { s.path.back().x, s.path.back().y };
+
+					if (successful_hits >= s.total_hits) {
+						object_hit(ho, HIT_300);
+					}
+					else if (successful_hits * 2.0f >= s.total_hits) {
+						object_hit(ho, HIT_100);
+					}
+					else if (successful_hits > 0) {
+						object_hit(ho, HIT_50);
+					}
+					else {
+						object_hit(ho, MISS);
+					}
+					on_object++;
+				}
+
+				// update slider ball position
+				float path_tick_time = ((float)(ho.end_time - ho.time) / (float)s.repeat_count) / s.path.size();
+
+				float total_length = (float)(ho.end_time - ho.time);
+				float progress = (map_time - (float)ho.time) / total_length;
+				progress = std::clamp(progress, 0.0f, 1.0f);
+
+				float progress_each_tick = 1.0f / s.path.size();
+
+				int repeat_index = (int)(progress * s.repeat_count);
+				repeat_index = std::clamp(repeat_index, 0, s.repeat_count - 1);
+
+				float repeat_progress = (progress * s.repeat_count) - repeat_index;
+				repeat_progress = std::clamp(repeat_progress, 0.0f, 1.0f);
+
+				if (repeat_index % 2 == 1) {
+					repeat_progress = 1.0f - repeat_progress;
+				}
+
+				float on_tick = repeat_progress / progress_each_tick;
+				float remainder = on_tick - (int)on_tick;
+
+				if (s.repeat_left != s.repeat_count - repeat_index) {
+					s.repeat_left = s.repeat_count - repeat_index;
+				}
+
+
+				if (s.path.size() == 1) { // linear sliders
+					float interp_x = (1.0f - remainder) * ho.pos.x + remainder * s.path[0].x;
+					float interp_y = (1.0f - remainder) * ho.pos.y + remainder * s.path[0].y;
+					s.slider_ball_pos = { interp_x, interp_y };
+					break;
+				}
+				on_tick = std::min(on_tick, (float)s.path.size() - 1);
+				float interp_x = (1.0f - remainder) * s.path[(int)on_tick].x + remainder * s.path[std::min((int)on_tick + 1, (int)s.path.size() - 1)].x;
+				float interp_y = (1.0f - remainder) * s.path[(int)on_tick].y + remainder * s.path[std::min((int)on_tick + 1, (int)s.path.size() - 1)].y;
+
+				s.slider_ball_pos = { interp_x, interp_y };
+
+				break;
+			}
+
+			case SPINNER: {
+				if (check_cnt == 1) break;
+
+				if (map_time < ho.time) break;
+
+				auto& sp = spinners[ho.idx];
+
+				float dt = frame_time;
+
+				if (key1_down_r || key2_down_r) {
+					auto toAngle = [&](Vector2 p) { return atan2f(p.y - (192 * playfield_scale + playfield_offset_y), p.x - (256 * playfield_scale + playfield_offset_x)); };
+					float a0 = toAngle(cursor);
+					float a1 = toAngle(mouse_pos_prev);
+					float diff = a1 - a0;
+					if (diff > PI) diff -= 2.0f * PI;
+					if (diff < -PI) diff += 2.0f * PI;
+					float angular_velocity_input = diff / dt;
+
+					float delta_rot = fabsf(angular_velocity_input) * dt / (PI);
+					sp.rotation_count += delta_rot * map_speed;
+
+					// smooth rpm display
+					double decay = pow(0.9, dt * 1000 / 16.66667);
+					sp.rpm = sp.rpm * decay + (1.0f - decay) * (abs(angular_velocity_input)) / (PI * 2) * 60;
+
+					// completion bar
+					float completion = std::clamp(sp.rotation_count / sp.rotation_requirement, 0.0f, 1.0f);
+
+					if (int(sp.rotation_count) != sp.scoring_rotation_count) {
+						sp.scoring_rotation_count = int(sp.rotation_count);
+
+						if (sp.scoring_rotation_count > sp.rotation_requirement + 3 && (sp.scoring_rotation_count - (sp.rotation_requirement + 3)) % 2 == 0) {
+							score += spinner_bonus_score;
+							sp.bonus_score += 1000;
+						}
+						else if (sp.scoring_rotation_count > 1 && sp.scoring_rotation_count % 2 == 0) {
+							score += spinner_spin_score;
+						}
+					}
+				}
+				// check for disappearance
+				while (on_object < (int)hit_objects.size() && hit_objects[on_object].end_time < map_time) {
+
+					if (sp.rotation_count > sp.rotation_requirement + 1) {
+						object_hit(ho, HIT_300);
+					}
+					else if (sp.rotation_count > sp.rotation_requirement) {
+						object_hit(ho, HIT_100);
+					}
+					else if (sp.rotation_count > sp.rotation_requirement - 1 && sp.rotation_count > 0.5) {
+						object_hit(ho, HIT_50);
+					}
+					else {
+						object_hit(ho, MISS);
+					}
+					on_object++;
+				}
+
+
+				break;
+			}
+
+			}
+
+			if (check_cnt == 0) {
+				if (on_object + 1 >= (int)hit_objects.size()) break;
+				check_cnt++;
+				if (prev_on_object == on_object) {
+
+					if (ho.type == SPINNER) break;
+					if (ho.type == SLIDER) {
+						auto& s = sliders[ho.idx];
+						if (s.head_hit_checked) {
+							// no need to check for other Shit.
+							break;
+						}
+					}
+
+					on_object++;
+					goto update_object_jmp;
+				}
+			}
+			else {
+				// TODO : bugs here if the last object was a slider, rework this
+				if (on_object == prev_on_object + 1) {
+					if (ho.type == SLIDER) {
+						auto& s = sliders[ho.idx];
+						if (s.head_hit_checked) {
+							// std::cout << "prevented notelock on slider head/tail, on_object was " << prev_on_object << " now " << on_object << "\n";
+							// miss old object
+							auto& ho = hit_objects[prev_on_object];
+							// std::cout << "Missed Object at time " << ho.time << "\n";
+							object_hit(ho, MISS);
+							combo++;
+							break;
+						}
+					}
+					on_object--;
+				}
+
+				else { // we hit something
+					// std::cout << "prevented notelock, on_object was " << prev_on_object << " now " << on_object << "\n";
+					// miss old object
+					auto& ho = hit_objects[prev_on_object];
+					// std::cout << "Missed Object at time " << ho.time << "\n";
+					object_hit(ho, MISS);
+					combo++;
+				}
+			}
+
+			break;
+		}
+
+		while (visible_end < (int)hit_objects.size() && hit_objects[visible_end].time - approach_rate_milliseconds <= map_time) {
+			visible_end++;
+		}
+		mouse_pos_prev = cursor;
+
+		// interpolated cursor for draw function
+		cursor = Vector2{
+			(replay_frames[on_replay_frame].cursor_pos.x * (1.0f - frame_progress) + replay_frames[std::min(on_replay_frame + 1, (int)replay_frames.size() - 1)].cursor_pos.x * frame_progress),
+			(replay_frames[on_replay_frame].cursor_pos.y * (1.0f - frame_progress) + replay_frames[std::min(on_replay_frame + 1, (int)replay_frames.size() - 1)].cursor_pos.y * frame_progress)
+		};
+
+		cursor.x *= playfield_scale;
+		cursor.y *= playfield_scale;
+
+		cursor.x += playfield_offset_x;
+		cursor.y += playfield_offset_y;
+	}
+}
+
+void ingame::update() {
+
+	if (IsKeyPressed(KEY_ESCAPE)) {
+		
+		if (!paused) {
+			PauseMusicStream(music);
+			paused_time = GetTime();
+		}
+		else {
+			ResumeMusicStream(music);
+		}
+		paused = !paused;
+	}
+
+	if (paused) {
+
+	}
+	else {
+		
+		// map_time = map_begin_time + (float)GetTime() * 1000.0f * map_speed;
+		// map_time_accumulator += float(frame_time * 1000.0f * map_speed);
+		// map_time = map_begin_time + map_time_accumulator;
+		map_time = map_speed * GetTime() * 1000.0f - start_time + map_begin_time;
+
+		if (on_object >= (int)hit_objects.size()) { // Check for end of map
+			accumulated_end_time += frame_time;
+
+			if (hit_objects[hit_objects.size() - 1].end_time > GetMusicTimePlayed(music) * 1000.0f + 500) {
+				StopMusicStream(music);
+			}
+			if (accumulated_end_time > 2.0f || IsKeyPressed(KEY_ESCAPE)) { // End map & show results screen
+				map_end();
+			}
+			return;
+		}
+
+		switch (song_init) {
+		case 0: // song not initialized
+			if (map_time >= 0.0f) {
+				map_time = 0.0f;
+				PlayMusicStream(music);
+				SetMusicVolume(music, settings_volume_music / 100.0f);
+				if (map_speed != 1.0f) {
+					SetMusicPitch(music, map_speed);
+				}
+				song_init = 1;
+				if (map_first_object_time - 3000.0f > map_time)
+					skippable = true;
+				else {
+					flashlight_dim_target = 1.0f;
+					song_init = 2;
+				}
+			}
+			break;
+		case 1: // song started playing, but map not yet begun
+			if (map_time >= map_first_object_time - 2500.0f) {
+				skippable = false;
+				song_init = 2;
+				flashlight_dim_target = 1.0f;
+			}
+			if (skippable && (IsKeyPressed(KEY_SPACE) || (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(cursor, { 4 * screen_width / 5, 4 * screen_height / 5, screen_width / 5, screen_height / 5 })))) {
+				float skip_target_time = map_first_object_time - 2500.0f - 1000.0f * map_speed;
+
+				if (skip_target_time < 0.0f) skip_target_time = 0.0f;
+				StopMusicStream(music);
+				PlayMusicStream(music);
+				SeekMusicStream(music, skip_target_time / 1000.0f);
+				UpdateMusicStream(music);
+
+				map_begin_time = skip_target_time;
+				map_time = map_begin_time;
+				map_time_accumulator = 0;
+				skippable = false;
+				flashlight_dim_target = 1.0f;
+				start_time = map_speed * GetTime() * 1000.0f;
 				song_init = 2;
 				std::cout << "SKIPPED! GetTimePlayed: " << GetMusicTimePlayed(music) * 1000.0f << ", map_time: " << map_time;
  			}
@@ -1194,6 +1720,10 @@ void ingame::update() {
 					key2_down = false;
 					m2_down = false;
 				}
+			}
+			else {
+				m1_down = false;
+				m2_down = false;
 			}
 			HitObjectEntry ho;
 			if (on_object < (int)hit_objects.size()) ho = hit_objects[on_object];
@@ -1255,10 +1785,6 @@ void ingame::update() {
 								s.slider_ticks[s.on_slider_tick].w += 4; // mark as hit
 								if (max_combo < combo) max_combo = combo;
 								goto slider_tick_check_continue;
-							}
-
-							if (s.slider_ticks[s.on_slider_tick].w == 2) {
-
 							}
 
 						}
@@ -1470,6 +1996,49 @@ void ingame::update() {
 		}
 
 		mouse_pos_prev = cursor;
+
+		if (settings_record_replays) { // replay recording
+			replay_frame_counter += float(frame_time * 1000.0f * map_speed);
+			// 2 conditions to record: if a key gets pressed/released or if a mouse movement happens in a short time
+			float real_x = (cursor.x - playfield_offset_x) / playfield_scale;
+			float real_y = (cursor.y - playfield_offset_y) / playfield_scale;
+
+			auto add_frame = [&]() {
+				current_replay_frame = { { (cursor.x - playfield_offset_x) / playfield_scale, (cursor.y - playfield_offset_y) / playfield_scale}, {key1_down, key2_down, m1_down, m2_down} , replay_frame_counter };
+
+				uint32_t x = static_cast<uint32_t>(std::round((std::clamp(real_x, 0.0f, 512.0f) / 512.0f) * 1023.0f));
+				uint32_t y = static_cast<uint32_t>(std::round((std::clamp(real_y, 0.0f, 512.0f) / 512.0f) * 1023.0f));
+
+				uint32_t time = (uint32_t)replay_frame_counter;
+
+				replay_frames_compressed.push_back(
+					(x & 0x3FFu) |
+					((y & 0x3FFu) << 10) |
+					((key1_down & 0x1u) << 20) |
+					((key2_down & 0x1u) << 21) |
+					((m1_down & 0x1u) << 22) |
+					((m2_down & 0x1u) << 23) |
+					((time & 0xFFu) << 24));
+
+				replay_frame_counter -= (uint32_t)replay_frame_counter;
+			};
+			if (IsKeyPressed(key_1) || IsKeyPressed(key_2) || IsKeyReleased(key_1) || IsKeyReleased(key_2)) {
+				add_frame();
+			}
+			else {
+				float resolution = 4.0f; 
+				float dist = powf(current_replay_frame.cursor_pos.x - real_x, 2) + powf(current_replay_frame.cursor_pos.y - real_y, 2);
+				if (dist > 81 * resolution) { // add very high, high, medium, very low settings for this later maybe
+					add_frame();
+				}
+				else if (dist > 8 * resolution && replay_frame_counter > 100) {
+					add_frame();
+				}
+				else if (replay_frame_counter >= 220) {
+					add_frame();
+				}
+			}
+		}
 	}
 }
 
@@ -1614,10 +2183,6 @@ void ingame::draw() {
 					
 			// draw reverse arrows
 			if (s.repeat_left > 1) {
-
-				if (IsKeyPressed(KEY_V)) {
-					std::cout << "break";
-				}
 
 				int added_angle = 90.0f;
 				if (s.slider_type == 'P') {

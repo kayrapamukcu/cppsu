@@ -20,25 +20,26 @@
 
 int main()
 {	
+#pragma region init
 	std::ios::sync_with_stdio(false);
 	// INIT SEQUENCE
 	db::init();	
 	InitWindow((int)screen_width, (int)screen_height, "cppsu!");
 	InitAudioDevice();
-
+	// SetAudioStreamBufferSizeDefault(1024);
 	// build sound effects
 
 	std::filesystem::path sfx_path = db::fs_path / "resources" / "sounds";
 
 	auto files_vect = db::get_files(sfx_path, std::vector<std::string>{".wav", ".mp3"});
-
+	
 	for(const auto& f : files_vect) {
 		Sound sfx = LoadSound((sfx_path / f).string().c_str());
 		sound_effects[f] = sfx;
 		std::cout << std::format("Loaded SFX: {}\n", f);
 	}
 
-
+	
 	SetExitKey(KEY_NULL);
 
 	aller_r = LoadFontEx("resources/aller.ttf", 72, NULL, 0);
@@ -100,18 +101,6 @@ int main()
 		}
 
 	}
-	/*
-	for (auto& [filename, frame] : j["frames"].items()) {
-
-		Rectangle rect = { (float)frame["frame"]["x"], (float)frame["frame"]["y"], (float)frame["frame"]["w"], (float)frame["frame"]["h"] };
-		for (auto& m : atlas_map) {
-			if (filename == m.name) {
-				tex[(int)m.id] = rect;
-				break;
-			}
-		}
-	}
-	*/
 
 	HideCursor();
 
@@ -125,7 +114,7 @@ int main()
 	screen_width = (float)GetScreenWidth();
 	screen_height = (float)GetScreenHeight();
 
-	// SetTargetFPS(360);
+	// 
 
 	settings::init();
 	SetSoundPitch(welcome_sfx, 0.6f);
@@ -146,36 +135,39 @@ int main()
 	Color fps_orange = { 255, 149, 24, 255 };
 	Color fps_yellow = { 255, 204, 34, 255 };
 	Color fps_green = { 172, 220, 25, 255 };
-
+#pragma endregion
 	game_state = MAIN_MENU;
-
+	// SetTargetFPS(360);
 	while (!WindowShouldClose())
 	{
 		frame_time = GetFrameTime();
+		UpdateMusicStream(music);
 		// update cursor values
-		{
-			if (settings_raw_input) {
+		{	
+			if (game_state != REPLAY) {
+				if (settings_raw_input) {
 
-				Vector2 d = GetMouseDelta();
-				cursor.x += d.x * settings_mouse_sens;
-				cursor.y += d.y * settings_mouse_sens;
+					Vector2 d = GetMouseDelta();
+					cursor.x += d.x * settings_mouse_sens;
+					cursor.y += d.y * settings_mouse_sens;
 
-				if (cursor.x < 0) {
-					cursor.x = 0;
-				}
-				else if (cursor.x > screen_width) {
-					cursor.x = screen_width;
-				}
+					if (cursor.x < 0) {
+						cursor.x = 0;
+					}
+					else if (cursor.x > screen_width) {
+						cursor.x = screen_width;
+					}
 
-				if (cursor.y < 0) {
-					cursor.y = 0;
+					if (cursor.y < 0) {
+						cursor.y = 0;
+					}
+					else if (cursor.y > screen_height) {
+						cursor.y = screen_height;
+					}
 				}
-				else if (cursor.y > screen_height) {
-					cursor.y = screen_height;
+				else {
+					cursor = GetMousePosition();
 				}
-			}
-			else {
-				cursor = GetMousePosition();
 			}
 			m1_down = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
 			m2_down = IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
@@ -187,8 +179,7 @@ int main()
 			m2_released = IsMouseButtonReleased(MOUSE_BUTTON_RIGHT);
 		}
 		
-
-		if (IsKeyPressed(KEY_F2)) {
+		/*if (IsKeyPressed(KEY_F2)) {
 			
 			EnableCursor();
 			SetMousePosition(cursor.x, cursor.y);
@@ -201,11 +192,7 @@ int main()
 			settings_raw_input = true;
 		}
 
-
-		UpdateMusicStream(music);
-		if (IsKeyPressed(KEY_F4)) {
-			ToggleFullscreen();
-		}
+		
 		if (IsKeyPressed(KEY_F5)) {
 			game_state = MAIN_MENU;
 			db::reconstruct_db();
@@ -216,8 +203,18 @@ int main()
 		}
 		if (IsKeyPressed(KEY_F7)) {
 			settings::update_screen_resolution(screen_width - 16 * 5, screen_height - 9 * 5);
+		}*/
+
+		if (IsKeyPressed(KEY_F4)) {
+			ToggleFullscreen();
 		}
 
+		if (IsKeyPressed(KEY_F8)) {
+			SetTargetFPS(60);
+		}
+		if (IsKeyPressed(KEY_F9)) {
+			SetTargetFPS(9999);
+		}
 		BeginDrawing();
 		
 		// TODO : add buttons instead of keybinds
@@ -329,6 +326,13 @@ int main()
 				g_result_screen->update();
 				if(g_result_screen) g_result_screen->draw();
 			break;
+			case REPLAY:
+				g_ingame->update_replay();
+				if (g_ingame) g_ingame->draw();
+				if (IsKeyPressed(KEY_B)) {
+					song_select::init(true);
+				}
+			break;
 		}
 
 		for (size_t i = 0; i < notices.size(); i++) {
@@ -360,11 +364,8 @@ int main()
 			auto& c = tex[(int)SPRITE::Cursor];
 			DrawTexturePro(atlas, c, { cursor.x - (c.width * settings_cursor_scale / 2) * screen_scale, cursor.y - (c.height * settings_cursor_scale / 2) * screen_scale, c.width * settings_cursor_scale * screen_scale, c.height * settings_cursor_scale * screen_scale }, { 0,0 }, 0.0f, WHITE);
 		}
-
-
-
+		
 		// draw fps / ms info
-
 		if (settings_render_fps_ms) {
 			int fps_target = screen_refresh_rate * 2;
 			int fps = GetFPS();
